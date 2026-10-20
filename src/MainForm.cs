@@ -33,7 +33,8 @@ namespace ClaudeTrafficLight
         private ToolStripMenuItem _miPrivacy;
         private readonly Dictionary<string, int> _aliases =
             new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        private int _nextAlias = 1;
+        private readonly Dictionary<string, int> _aliasCounters =
+            new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
         private int HeaderH { get { return Ui.Px(66); } }
 
@@ -43,7 +44,7 @@ namespace ClaudeTrafficLight
             _monitor = monitor;
             _startHidden = startHidden;
 
-            Text = "Claude 状态红绿灯";
+            Text = AppInfo.DisplayName;
             FormBorderStyle = FormBorderStyle.None;
             BackColor = Ui.Bg;
             ForeColor = Ui.Text;
@@ -83,7 +84,7 @@ namespace ClaudeTrafficLight
 
             _tray = new NotifyIcon();
             _tray.Icon = AppIcon.ForState(SessState.Done);
-            _tray.Text = "Claude 状态红绿灯";
+            _tray.Text = AppInfo.DisplayName;
             _tray.Visible = true;
             _tray.DoubleClick += delegate { ShowMain(); };
             _tray.BalloonTipClicked += delegate { OnBalloonClicked(); };
@@ -123,19 +124,24 @@ namespace ClaudeTrafficLight
             catch { }
         }
 
-        /// <summary>隐私模式下的显示名：只给序号，不暴露标题/项目名。</summary>
+        /// <summary>隐私模式下的显示名：只给“来源 + 序号”，不暴露标题/项目名。</summary>
         private string NameFor(SessionInfo s)
         {
             if (s == null) return "";
             if (!_settings.PrivacyMode) return s.DisplayTitle();
 
+            string key = s.Provider + ":" + s.SessionId;
             int n;
-            if (!_aliases.TryGetValue(s.SessionId, out n))
+            if (!_aliases.TryGetValue(key, out n))
             {
-                n = _nextAlias++;
-                _aliases[s.SessionId] = n;
+                int c;
+                _aliasCounters.TryGetValue(s.Provider, out c);
+                c++;
+                _aliasCounters[s.Provider] = c;
+                n = c;
+                _aliases[key] = n;
             }
-            return "会话 " + n;
+            return Ui.ProviderLabel(s.Provider) + " " + n;
         }
 
         public void ExitFromOutside()
@@ -248,7 +254,7 @@ namespace ClaudeTrafficLight
             Rectangle housing = new Rectangle(Ui.Px(14), Ui.Px(6), Ui.Px(38), Ui.Px(54));
             DrawTrafficLight(g, housing, overall, Pulse());
 
-            TextRenderer.DrawText(g, "Claude 状态", Ui.F12B,
+            TextRenderer.DrawText(g, "AI 状态", Ui.F12B,
                 new Rectangle(Ui.Px(64), Ui.Px(11), Width - Ui.Px(64) - Ui.Px(168), Ui.Px(24)),
                 Ui.Text, TextFormatFlags.NoPadding | TextFormatFlags.SingleLine);
 
@@ -488,7 +494,7 @@ namespace ClaudeTrafficLight
                 _tray.Icon = AppIcon.ForState(overall);
             }
 
-            string tip = "Claude 状态红绿灯 — " + total + " 个会话";
+            string tip = AppInfo.DisplayName + " — " + total + " 个会话";
             if (needs > 0) tip += "，" + needs + " 个需要你";
             else if (errors > 0) tip += "，" + errors + " 个出错";
             else if (working > 0) tip += "，" + working + " 个工作中";
@@ -507,18 +513,20 @@ namespace ClaudeTrafficLight
 
             string title;
             string text;
+            string provider = ev.Session != null ? Ui.ProviderLabel(ev.Session.Provider) : "";
             if (_settings.PrivacyMode)
             {
-                title = ev.Kind == "needs" ? "有会话需要你回答"
-                      : ev.Kind == "error" ? "有会话出错"
-                      : "有会话已完成";
+                title = provider + (ev.Kind == "needs" ? " 有会话需要你回答"
+                      : ev.Kind == "error" ? " 有会话出错"
+                      : " 有会话已完成");
                 text = "打开红绿灯查看状态（隐私模式）";
             }
             else
             {
-                if (ev.Kind == "needs") title = "需要你回答 · " + ev.Session.DisplayTitle();
-                else if (ev.Kind == "error") title = "出错 · " + ev.Session.DisplayTitle();
-                else title = "已完成 · " + ev.Session.DisplayTitle();
+                string kindText = ev.Kind == "needs" ? "需要你回答"
+                                : ev.Kind == "error" ? "出错"
+                                : "已完成";
+                title = provider + " · " + kindText + " · " + ev.Session.DisplayTitle();
 
                 text = string.IsNullOrEmpty(ev.Text) ? " " : ev.Text;
                 if (text.Length > 200) text = text.Substring(0, 200);

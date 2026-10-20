@@ -31,8 +31,19 @@ namespace ClaudeTrafficLight
             public DateTime DeadAt = DateTime.MinValue;
         }
 
+        private sealed class ExtState
+        {
+            public SessState Last = SessState.Offline;
+            public bool Unread;
+            public bool First = true;
+            public DateTime LastNotify = DateTime.MinValue;
+            public string LastKind = "";
+            public DateTime LastSeen = DateTime.MinValue;
+        }
+
         private readonly object _sync = new object();
         private readonly Dictionary<string, State> _states = new Dictionary<string, State>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, ExtState> _extStates = new Dictionary<string, ExtState>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, Dictionary<string, object>> _hooks =
             new Dictionary<string, Dictionary<string, object>>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, string> _transcriptIndex =
@@ -117,9 +128,13 @@ namespace ClaudeTrafficLight
         {
             DateTime now = DateTime.UtcNow;
             long m0 = _clock.ElapsedMilliseconds;
-            ConsumeHooks(now);
+            List<RegistryRec> recs = new List<RegistryRec>();
+            if (_settings.MonitorClaude)
+            {
+                ConsumeHooks(now);
+                recs = _registry.Read();
+            }
             long m1 = _clock.ElapsedMilliseconds;
-            List<RegistryRec> recs = _registry.Read();
             long m2 = _clock.ElapsedMilliseconds;
 
             HashSet<string> aliveIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -222,6 +237,13 @@ namespace ClaudeTrafficLight
                         snap.Add(Clone(st.Info));
                 }
             }
+            // Codex / DeepSeek Harness
+            List<SessionInfo> ext = new List<SessionInfo>();
+            try { ext.AddRange(CodexProvider.Scan(_settings, now)); } catch { }
+            try { ext.AddRange(DshProvider.Scan(_settings, now)); } catch { }
+            ApplyExternalStates(ext, now);
+            snap.AddRange(ext);
+
             snap.Sort(CompareSessions);
 
             // 只有内容真的变了（或过了 30 秒，让"N 分钟前"有机会刷新）才让 UI 重绘
@@ -250,6 +272,7 @@ namespace ClaudeTrafficLight
             for (int i = 0; i < snap.Count; i++)
             {
                 SessionInfo s = snap[i];
+                h = Mix(h, s.Provider);
                 h = Mix(h, s.SessionId);
                 h = Mix(h, (int)s.State);
                 h = Mix(h, s.Unread ? 1 : 0);
@@ -406,6 +429,99 @@ namespace ClaudeTrafficLight
             st.FirstPoll = false;
         }
 
+        private void ApplyExternalStates(List<SessionInfo> list, DateTime now)
+        {
+            lock (_sync)
+            {
+                for (int i = 0; i < list.Count; i++)
+                {
+                    SessionInfo s = list[i];
+                    string key = s.Provider + ":" + s.SessionId;
+
+                    ExtState st;
+                    if (!_extStates.TryGetValue(key, out st))
+                    {
+                        st = new ExtState();
+                        _extStates[key] = st;
+                    }
+                    st.LastSeen = now;
+
+                    bool first = st.First;
+                    SessState prev = st.Last;
+
+                    if (s.State != prev)
+                    {
+                        if (s.State == SessState.Working)
+                        {
+                            st.Unread = false;
+                        }
+                        else if (s.State == SessState.NeedsInput || s.State == SessState.Error)
+                        {
+                            if (!first) st.Unread = true;
+                            if (!first) NotifyExternal(s, now, st);
+                        }
+                        else if (s.State == SessState.Done)
+                        {
+                            if (!first && prev == SessState.Working)
+                            {
+                                st.Unread = true;
+                                NotifyExternal(s, now, st);
+                            }
+                        }
+                        st.Last = s.State;
+                    }
+                    else if (s.State == SessState.NeedsInput && !first)
+                    {
+                        NotifyExternal(s, now, st);
+                    }
+
+                    s.Unread = st.Unread;
+                    st.First = false;
+                }
+
+                if (_extStates.Count > 40)
+                {
+                    List<string> stale = new List<string>();
+                    foreach (KeyValuePair<string, ExtState> kv in _extStates)
+                    {
+                        if ((now - kv.Value.LastSeen).TotalHours > 2) stale.Add(kv.Key);
+                    }
+                    for (int i = 0; i < stale.Count; i++) _extStates.Remove(stale[i]);
+                }
+            }
+        }
+
+        private void NotifyExternal(SessionInfo s, DateTime now, ExtState st)
+        {
+            string kind = s.State == SessState.NeedsInput ? "needs" : (s.State == SessState.Error ? "error" : "done");
+            if (st.LastKind == kind && (now - st.LastNotify).TotalSeconds < 20) return;
+            st.LastKind = kind;
+            st.LastNotify = now;
+
+            MonitorEvent e = new MonitorEvent();
+            e.Kind = kind;
+            e.Text = ExternalNotifyText(s, kind);
+            e.Session = Clone(s);
+            _events.Enqueue(e);
+            Log.Write("notify " + kind + " [" + s.Provider + "] " + s.DisplayTitle() + " :: " + e.Text);
+        }
+
+        private static string ExternalNotifyText(SessionInfo s, string kind)
+        {
+            if (kind == "needs")
+            {
+                if (!string.IsNullOrEmpty(s.WaitingFor)) return Ui.Shorten(s.WaitingFor, 180);
+                return "需要你的回答";
+            }
+            if (kind == "done")
+            {
+                if (!string.IsNullOrEmpty(s.LastAssistant)) return Ui.Shorten(s.LastAssistant, 180);
+                return "这一轮已经完成";
+            }
+            if (!string.IsNullOrEmpty(s.ErrorText)) return Ui.Shorten(s.ErrorText, 180);
+            return "会话出现异常";
+        }
+
         private void MaybeNotify(State st, SessState s, Dictionary<string, object> hook, DateTime now)
         {
             string kind = s == SessState.NeedsInput ? "needs" : (s == SessState.Error ? "error" : "done");
@@ -470,11 +586,31 @@ namespace ClaudeTrafficLight
         public void MarkRead(string sessionId)
         {
             if (string.IsNullOrEmpty(sessionId)) return;
+
+            List<SessionInfo> snap = _snapshot;
+            SessionInfo found = null;
+            for (int i = 0; i < snap.Count; i++)
+            {
+                if (string.Equals(snap[i].SessionId, sessionId, StringComparison.OrdinalIgnoreCase))
+                {
+                    found = snap[i];
+                    break;
+                }
+            }
+
             lock (_sync)
             {
-                State st;
-                if (_states.TryGetValue(sessionId, out st)) st.Info.Unread = false;
-                List<SessionInfo> snap = _snapshot;
+                if (found != null && found.Provider != "claude")
+                {
+                    ExtState es;
+                    if (_extStates.TryGetValue(found.Provider + ":" + sessionId, out es)) es.Unread = false;
+                }
+                else
+                {
+                    State st;
+                    if (_states.TryGetValue(sessionId, out st)) st.Info.Unread = false;
+                }
+
                 for (int i = 0; i < snap.Count; i++)
                 {
                     if (string.Equals(snap[i].SessionId, sessionId, StringComparison.OrdinalIgnoreCase))
@@ -580,6 +716,7 @@ namespace ClaudeTrafficLight
         private static SessionInfo Clone(SessionInfo a)
         {
             SessionInfo b = new SessionInfo();
+            b.Provider = a.Provider;
             b.SessionId = a.SessionId;
             b.Pid = a.Pid;
             b.Cwd = a.Cwd;

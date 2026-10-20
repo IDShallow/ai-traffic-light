@@ -17,6 +17,7 @@ namespace ClaudeTrafficLight
 
     internal sealed class SessionInfo
     {
+        public string Provider = "claude";   // claude | codex | dsh
         public string SessionId = "";
         public int Pid;
         public string Cwd = "";
@@ -51,8 +52,16 @@ namespace ClaudeTrafficLight
         public string DisplayTitle()
         {
             if (!string.IsNullOrEmpty(Title)) return Title;
-            string p = ProjectName;
-            if (string.IsNullOrEmpty(p)) p = "Claude";
+
+            string p;
+            if (Provider == "codex") p = "Codex";
+            else if (Provider == "dsh") p = "DSH";
+            else
+            {
+                p = ProjectName;
+                if (string.IsNullOrEmpty(p)) p = "Claude";
+            }
+
             if (SessionId.Length >= 8) return p + " · " + SessionId.Substring(0, 8);
             return p;
         }
@@ -87,6 +96,9 @@ namespace ClaudeTrafficLight
         public bool SortByState = true;
         public bool HooksEnabled;
         public bool PrivacyMode;
+        public bool MonitorClaude = true;
+        public bool MonitorCodex = true;
+        public bool MonitorDsh = true;
         public double Opacity = 1.0;
         public bool StartMinimized;
 
@@ -119,6 +131,9 @@ namespace ClaudeTrafficLight
                 s.SortByState = Json.Bool(d, "sortByState", s.SortByState);
                 s.HooksEnabled = Json.Bool(d, "hooksEnabled", s.HooksEnabled);
                 s.PrivacyMode = Json.Bool(d, "privacyMode", s.PrivacyMode);
+                s.MonitorClaude = Json.Bool(d, "monitorClaude", s.MonitorClaude);
+                s.MonitorCodex = Json.Bool(d, "monitorCodex", s.MonitorCodex);
+                s.MonitorDsh = Json.Bool(d, "monitorDsh", s.MonitorDsh);
                 s.Opacity = Number(d, "opacity", s.Opacity);
                 s.StartMinimized = Json.Bool(d, "startMinimized", s.StartMinimized);
             }
@@ -173,6 +188,9 @@ namespace ClaudeTrafficLight
                 d["sortByState"] = SortByState;
                 d["hooksEnabled"] = HooksEnabled;
                 d["privacyMode"] = PrivacyMode;
+                d["monitorClaude"] = MonitorClaude;
+                d["monitorCodex"] = MonitorCodex;
+                d["monitorDsh"] = MonitorDsh;
                 d["opacity"] = Opacity;
                 d["startMinimized"] = StartMinimized;
                 File.WriteAllText(Paths.SettingsFile, Json.Pretty(d), new System.Text.UTF8Encoding(false));
