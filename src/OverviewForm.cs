@@ -16,6 +16,8 @@ namespace ClaudeTrafficLight
 
         private readonly AppSettings _settings;
         private readonly Rectangle _anchor;
+        public Func<SessionInfo, string> NameProvider;
+        public bool PrivacyMode;
         private List<SessionInfo> _items = new List<SessionInfo>();
         private string _selected = "";
         private int _hot = -1;
@@ -202,7 +204,8 @@ namespace ClaudeTrafficLight
                               (s.Unread && s.State == SessState.Done);
                 Ui.DrawLed(g, cx, cy, Ui.Px(6), c, urgent ? 1f : 0.3f, urgent ? pulse : 0.2f);
 
-                TextRenderer.DrawText(g, Ui.Shorten(s.DisplayTitle(), 20), Ui.F75,
+                string name = NameProvider != null ? NameProvider(s) : s.DisplayTitle();
+                TextRenderer.DrawText(g, Ui.Shorten(name, PrivacyMode ? 8 : 20), Ui.F75,
                     new Rectangle(r.X + Ui.Px(3), r.Y + Ui.Px(25), r.Width - Ui.Px(6), Ui.Px(15)),
                     Ui.Text, TextFormatFlags.HorizontalCenter | TextFormatFlags.NoPadding |
                     TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);

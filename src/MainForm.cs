@@ -778,6 +778,8 @@ namespace ClaudeTrafficLight
             }
             if (_overview != null)
             {
+                _overview.PrivacyMode = _settings.PrivacyMode;
+                _overview.NameProvider = NameFor;
                 if (_overview.Visible) _overview.Invalidate();
             }
             Invalidate(new Rectangle(0, 0, Width, HeaderH));
@@ -801,6 +803,8 @@ namespace ClaudeTrafficLight
                 if (_overview == null || _overview.IsDisposed)
                 {
                     _overview = new OverviewForm(_settings, new Rectangle(Location, Size));
+                    _overview.NameProvider = NameFor;
+                    _overview.PrivacyMode = _settings.PrivacyMode;
                     _overview.CellClicked += delegate(string id)
                     {
                         // 单击只选中，不打开主窗口；双击才直接跳到会话
