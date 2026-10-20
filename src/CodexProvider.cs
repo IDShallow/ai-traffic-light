@@ -109,9 +109,12 @@ namespace ClaudeTrafficLight
 
                 SessionInfo s = new SessionInfo();
                 s.Provider = "codex";
-                s.SessionId = p.SessionId.Length > 0 ? p.SessionId : GuessId(f);
-                if (!string.IsNullOrEmpty(p.SessionId) && Titles.ContainsKey(p.SessionId))
-                    s.Title = Titles[p.SessionId];
+                // 解析只读文件尾部，老会话的 session_meta 在开头；文件名里一定有 ID
+                string sid = p.SessionId.Length > 0 ? p.SessionId : GuessId(f);
+                s.SessionId = sid;
+                string title;
+                if (sid.Length > 0 && Titles.TryGetValue(sid, out title))
+                    s.Title = title;
                 s.Cwd = p.Cwd;
                 s.ProjectName = Ui.BaseName(p.Cwd);
                 s.Entrypoint = "codex-cli";

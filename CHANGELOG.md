@@ -3,6 +3,26 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [0.4.0] - 2026-10-20
+
+### Added
+
+- **跳到 Claude 桌面端会话**：双击会话时会按会话名选中桌面端侧边栏里的对应会话，
+  直接进入该会话，而不是只把窗口带到前台。
+
+### Changed
+
+- **总览窗显示真实会话名**：非隐私模式下格子优先显示 Claude 记录的会话名（`name`），
+  隐私模式下仍显示「会话 N」；格子加宽以容纳更长的名字。单击只选中，双击直接跳到对应会话，
+  不再打开主窗口。
+
+### Fixed
+
+- **Codex 会话名**：标题查找改用文件名里的会话 ID，老会话不再退回显示 `Codex · <id>`，
+  总览与列表显示 Codex 记录的 `thread_name`。
+- **跳到 Codex 会话**：双击 Codex 会话会通过 `codex://threads/<id>` 直接打开
+  ChatGPT/Codex 桌面端里的对应会话，不再错误地切到 VS Code。
+
 ## [0.3.0] - 2026-10-20
 
 ### Added

@@ -574,6 +574,13 @@ namespace ClaudeTrafficLight
         {
             if (s == null) return;
 
+            // Codex 桌面端：官方深链直接打开对应会话（不要先去前台聚焦 VS Code）
+            if (string.Equals(s.Provider, "codex", StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrEmpty(s.SessionId) && OpenCodexSession(s.SessionId))
+                return;
+
+            bool isVscode = string.Equals(s.Entrypoint, "claude-vscode", StringComparison.OrdinalIgnoreCase);
+
             IntPtr hwnd = IntPtr.Zero;
             bool focused = false;
             try
@@ -587,7 +594,10 @@ namespace ClaudeTrafficLight
             }
             catch { }
 
-            if (string.Equals(s.Entrypoint, "claude-vscode", StringComparison.OrdinalIgnoreCase))
+            Log.Write("jump " + s.SessionId + " ep=" + s.Entrypoint + " name=" + s.Name +
+                      " host=" + s.HostSessionId + " hwnd=" + hwnd);
+
+            if (isVscode)
             {
                 // 1) 会话标签页已经开着：按标题直接选中（VSCode 的会话就是标题命名的标签页）
                 if (hwnd != IntPtr.Zero && !string.IsNullOrEmpty(s.Title) &&
@@ -612,6 +622,17 @@ namespace ClaudeTrafficLight
                 }
             }
 
+            // Claude 桌面端：点侧边栏里对应的会话条目，直接切过去
+            if (!isVscode && !string.IsNullOrEmpty(s.HostSessionId))
+            {
+                if (hwnd != IntPtr.Zero && !string.IsNullOrEmpty(s.Name) &&
+                    DesktopFocus.SelectSession(hwnd, s.Name))
+                    return;
+
+                // 退路：官方深链。部分版本没接本地会话，留着兜底
+                if (OpenDesktopSession(s.HostSessionId)) return;
+            }
+
             if (!focused)
             {
                 try
@@ -620,6 +641,35 @@ namespace ClaudeTrafficLight
                         "这个会话可能已经关闭，或它的宿主窗口不在前台。", ToolTipIcon.None);
                 }
                 catch { }
+            }
+        }
+
+        private static bool OpenCodexSession(string sessionId)
+        {
+            try
+            {
+                string uri = "codex://threads/" + Uri.EscapeDataString(sessionId);
+                Process.Start(new ProcessStartInfo(uri) { UseShellExecute = true });
+                Log.Write("codex jump " + sessionId);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static bool OpenDesktopSession(string hostSessionId)
+        {
+            try
+            {
+                string uri = "claude://code/continue?session=" + Uri.EscapeDataString(hostSessionId);
+                Process.Start(new ProcessStartInfo(uri) { UseShellExecute = true });
+                return true;
+            }
+            catch
+            {
+                return false;
             }
         }
 
@@ -777,10 +827,17 @@ namespace ClaudeTrafficLight
                     _overview.PrivacyMode = _settings.PrivacyMode;
                     _overview.CellClicked += delegate(string id)
                     {
-                        ShowMain();
+                        // 单击只选中，不打开主窗口；双击才直接跳到会话
                         _list.Select(id, false);
                         _monitor.MarkRead(id);
                         _list.Invalidate();
+                    };
+                    _overview.CellActivated += delegate(SessionInfo s)
+                    {
+                        _list.Select(s.SessionId, false);
+                        _monitor.MarkRead(s.SessionId);
+                        _list.Invalidate();
+                        OnJumpRequested(s);
                     };
                     _overview.OpenMainRequested += delegate { ShowMain(); };
                     _overview.ClosedByUser += delegate

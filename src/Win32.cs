@@ -33,6 +33,14 @@ namespace ClaudeTrafficLight
         [DllImport("user32.dll")]
         public static extern bool SetProcessDPIAware();
 
+        public delegate bool EnumWindowProc(IntPtr hWnd, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        public static extern bool EnumChildWindows(IntPtr hWndParent, EnumWindowProc lpEnumFunc, IntPtr lParam);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        public static extern int GetClassName(IntPtr hWnd, System.Text.StringBuilder lpClassName, int nMaxCount);
+
         /// <summary>把窗口带到前台。裸调 SetForegroundWindow 会被前台锁拒绝，先合成一次 ALT。</summary>
         public static void ForceForeground(IntPtr hwnd)
         {

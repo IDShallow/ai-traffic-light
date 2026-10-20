@@ -21,6 +21,8 @@ namespace ClaudeTrafficLight
         public string SessionId = "";
         public int Pid;
         public string Cwd = "";
+        public string Name = "";
+        public string HostSessionId = "";
         public string Title = "";
         public string ProjectName = "";
         public string Entrypoint = "";
@@ -51,6 +53,7 @@ namespace ClaudeTrafficLight
 
         public string DisplayTitle()
         {
+            if (!string.IsNullOrEmpty(Name)) return Name;
             if (!string.IsNullOrEmpty(Title)) return Title;
 
             string p;
