@@ -648,6 +648,7 @@ namespace ClaudeTrafficLight
         {
             try
             {
+                if (!SchemeRegistered("codex")) return false;
                 string uri = "codex://threads/" + Uri.EscapeDataString(sessionId);
                 Process.Start(new ProcessStartInfo(uri) { UseShellExecute = true });
                 Log.Write("codex jump " + sessionId);
@@ -659,10 +660,25 @@ namespace ClaudeTrafficLight
             }
         }
 
+        /// <summary>没注册协议时不要启动，否则 Windows 会弹"选择打开方式"。</summary>
+        private static bool SchemeRegistered(string scheme)
+        {
+            try
+            {
+                using (Microsoft.Win32.RegistryKey k =
+                    Microsoft.Win32.Registry.ClassesRoot.OpenSubKey(scheme))
+                {
+                    return k != null;
+                }
+            }
+            catch { return false; }
+        }
+
         private static bool OpenDesktopSession(string hostSessionId)
         {
             try
             {
+                if (!SchemeRegistered("claude")) return false;
                 string uri = "claude://code/continue?session=" + Uri.EscapeDataString(hostSessionId);
                 Process.Start(new ProcessStartInfo(uri) { UseShellExecute = true });
                 return true;
@@ -827,7 +843,8 @@ namespace ClaudeTrafficLight
                     _overview.PrivacyMode = _settings.PrivacyMode;
                     _overview.CellClicked += delegate(string id)
                     {
-                        // 单击只选中，不打开主窗口；双击才直接跳到会话
+                        // 单击选中并打开主窗口；双击（CellActivated）直接跳到会话
+                        ShowMain();
                         _list.Select(id, false);
                         _monitor.MarkRead(id);
                         _list.Invalidate();

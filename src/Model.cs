@@ -53,8 +53,9 @@ namespace ClaudeTrafficLight
 
         public string DisplayTitle()
         {
-            if (!string.IsNullOrEmpty(Name)) return Name;
+            // AI 标题优先；没有标题时才用会话名，并且排除 "administrator-e7" 这类派生名
             if (!string.IsNullOrEmpty(Title)) return Title;
+            if (!string.IsNullOrEmpty(Name) && !IsDerivedSessionName(Name)) return Name;
 
             string p;
             if (Provider == "codex") p = "Codex";
@@ -67,6 +68,27 @@ namespace ClaudeTrafficLight
 
             if (SessionId.Length >= 8) return p + " · " + SessionId.Substring(0, 8);
             return p;
+        }
+
+        /// <summary>会话注册表里的 name 可能是 "&lt;机器名/用户名&gt;-两位十六进制"，不是给人看的标题。</summary>
+        private static bool IsDerivedSessionName(string n)
+        {
+            string[] prefixes = new string[] { Environment.MachineName, Environment.UserName };
+            for (int i = 0; i < prefixes.Length; i++)
+            {
+                string p = prefixes[i];
+                if (string.IsNullOrEmpty(p)) continue;
+                if (n.Length == p.Length + 3 &&
+                    n.StartsWith(p + "-", StringComparison.OrdinalIgnoreCase) &&
+                    IsHex(n[n.Length - 2]) && IsHex(n[n.Length - 1]))
+                    return true;
+            }
+            return false;
+        }
+
+        private static bool IsHex(char c)
+        {
+            return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
         }
 
         public string StateText()

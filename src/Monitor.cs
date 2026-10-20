@@ -275,6 +275,8 @@ namespace ClaudeTrafficLight
             {
                 SessionInfo s = snap[i];
                 h = Mix(h, s.Provider);
+                h = Mix(h, s.Name);
+                h = Mix(h, s.HostSessionId);
                 h = Mix(h, s.SessionId);
                 h = Mix(h, (int)s.State);
                 h = Mix(h, s.Unread ? 1 : 0);
