@@ -1,0 +1,25 @@
+name: Feature request
+description: 提一个新功能或改进
+labels: [ "enhancement" ]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 想解决什么问题
+      description: 先描述场景和痛点，再说方案。
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 你希望怎么做
+      description: 界面 / 行为 / 配置项，越具体越好。
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: 约束确认
+      options:
+        - label: 这个需求可以保持零第三方依赖、无遥测
+          required: true

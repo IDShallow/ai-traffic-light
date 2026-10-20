@@ -1,0 +1,14 @@
+# Build output
+dist/
+tools/make-icon.exe
+
+# Visual Studio / Rider
+.vs/
+bin/
+obj/
+*.user
+*.suo
+
+# OS
+Thumbs.db
+Desktop.ini

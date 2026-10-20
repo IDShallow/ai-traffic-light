@@ -1,0 +1,46 @@
+name: release
+
+on:
+  push:
+    tags: [ 'v*' ]
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build
+        shell: cmd
+        run: tools\build.cmd
+
+      - name: Create update manifest
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          $setup = "dist/ClaudeTrafficLightSetup.exe"
+          $hash = (Get-FileHash -Algorithm SHA256 -Path $setup).Hash.ToLower()
+          $url = "https://github.com/${{ github.repository }}/releases/latest/download/ClaudeTrafficLightSetup.exe"
+          $notes = "See release notes: https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}"
+          $manifest = [ordered]@{
+            version   = $version
+            url       = $url
+            sha256    = $hash
+            notes     = $notes
+            mandatory = $false
+          }
+          $manifest | ConvertTo-Json | Set-Content -Encoding UTF8 -Path dist/latest.json
+          Get-Content dist/latest.json
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            dist/ClaudeTrafficLightSetup.exe
+            dist/ClaudeTrafficLight.exe
+            dist/latest.json

@@ -1,0 +1,50 @@
+name: Bug report
+description: 报告一个问题
+labels: [ "bug" ]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        请先确认使用的是最新 Release。
+        如果有日志，请附上 `%LOCALAPPDATA%\ClaudeTrafficLight\log.txt`（附之前先删掉敏感内容）。
+
+  - type: input
+    id: version
+    attributes:
+      label: 版本
+      placeholder: "0.2.0"
+    validations:
+      required: true
+
+  - type: input
+    id: windows
+    attributes:
+      label: Windows 版本
+      placeholder: "Windows 11 23H2 / Windows 10 22H2"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: 发生了什么
+      description: 现象是什么？你期望是什么？
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: 确认
+      options:
+        - label: 我确认截图 / 日志里没有会话内容、个人路径等敏感信息
+          required: true

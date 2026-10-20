@@ -1,0 +1,257 @@
+using System;
+using System.Diagnostics;
+using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.IO;
+using System.Security.Principal;
+using System.Threading;
+using System.Windows.Forms;
+
+namespace ClaudeTrafficLight
+{
+    /// <summary>下载新版本并交给安装包（静默覆盖安装）。</summary>
+    internal sealed class UpdateForm : Form
+    {
+        private readonly UpdateInfo _info;
+        private readonly Label _title;
+        private readonly Label _status;
+        private readonly ProgressBar _bar;
+        private readonly Button _close;
+        private Rectangle _btnClose;
+        private bool _hotClose;
+        private bool _busy = true;
+
+        private int HeaderH { get { return Ui.Px(42); } }
+
+        public UpdateForm(UpdateInfo info)
+        {
+            _info = info;
+
+            Text = "软件更新";
+            FormBorderStyle = FormBorderStyle.None;
+            BackColor = Ui.Bg;
+            ForeColor = Ui.Text;
+            StartPosition = FormStartPosition.CenterParent;
+            ShowInTaskbar = false;
+            TopMost = true;
+            DoubleBuffered = true;
+            ClientSize = new Size(Ui.Px(430), Ui.Px(180));
+            MinimumSize = ClientSize;
+            MaximumSize = ClientSize;
+
+            _title = new Label();
+            _title.Text = "正在下载 v" + info.Version + " …";
+            _title.AutoSize = true;
+            _title.Font = Ui.F95B;
+            _title.ForeColor = Ui.Text;
+            _title.BackColor = Ui.Bg;
+            _title.Location = new Point(Ui.Px(24), HeaderH + Ui.Px(12));
+            Controls.Add(_title);
+
+            _bar = new ProgressBar();
+            _bar.Minimum = 0;
+            _bar.Maximum = 100;
+            _bar.Value = 0;
+            _bar.Location = new Point(Ui.Px(24), HeaderH + Ui.Px(44));
+            _bar.Size = new Size(ClientSize.Width - Ui.Px(48), Ui.Px(16));
+            Controls.Add(_bar);
+
+            _status = new Label();
+            _status.Text = "连接更新源…";
+            _status.AutoSize = false;
+            _status.Font = Ui.F8;
+            _status.ForeColor = Ui.TextDim;
+            _status.BackColor = Ui.Bg;
+            _status.Location = new Point(Ui.Px(24), HeaderH + Ui.Px(68));
+            _status.Size = new Size(ClientSize.Width - Ui.Px(48), Ui.Px(36));
+            Controls.Add(_status);
+
+            _close = new Button();
+            _close.Text = "关闭";
+            _close.Size = new Size(Ui.Px(84), Ui.Px(28));
+            _close.Location = new Point(ClientSize.Width - Ui.Px(24) - _close.Width,
+                                        ClientSize.Height - Ui.Px(44));
+            _close.FlatStyle = FlatStyle.Flat;
+            _close.FlatAppearance.BorderColor = Ui.Line;
+            _close.BackColor = Ui.Bg3;
+            _close.ForeColor = Ui.Text;
+            _close.Enabled = false;
+            _close.Click += delegate { Close(); };
+            Controls.Add(_close);
+
+            Shown += delegate { StartDownload(); };
+        }
+
+        private void StartDownload()
+        {
+            Thread t = new Thread(delegate()
+            {
+                try
+                {
+                    string path = UpdateChecker.Download(_info, delegate(int pct)
+                    {
+                        try
+                        {
+                            if (!IsDisposed) BeginInvoke((MethodInvoker)delegate
+                            {
+                                if (pct < 0) pct = 0;
+                                if (pct > 100) pct = 100;
+                                _bar.Value = pct;
+                                _status.Text = "已下载 " + pct + "%";
+                            });
+                        }
+                        catch { }
+                    });
+
+                    if (IsDisposed) return;
+                    BeginInvoke((MethodInvoker)delegate { Launch(path); });
+                }
+                catch (Exception ex)
+                {
+                    if (IsDisposed) return;
+                    try
+                    {
+                        BeginInvoke((MethodInvoker)delegate
+                        {
+                            _busy = false;
+                            _title.Text = "更新失败";
+                            _status.Text = ex.Message;
+                            _status.ForeColor = Ui.Red;
+                            _close.Enabled = true;
+                        });
+                    }
+                    catch { }
+                }
+            });
+            t.IsBackground = true;
+            t.Start();
+        }
+
+        private void Launch(string setupPath)
+        {
+            _title.Text = "正在安装…";
+            _status.Text = "程序会退出，安装完成后自动重新打开。";
+            _bar.Value = 100;
+
+            try
+            {
+                string dir = Path.GetDirectoryName(Paths.ExePath);
+                ProcessStartInfo psi = new ProcessStartInfo(
+                    setupPath,
+                    "--silent --update --restart --dir=\"" + dir + "\"");
+                psi.UseShellExecute = true;
+                psi.WorkingDirectory = Path.GetTempPath();
+                if (NeedsElevation(dir) && !IsAdmin()) psi.Verb = "runas";
+
+                Process.Start(psi);
+                Log.Write("update launched: " + setupPath + " -> " + dir);
+                Application.DoEvents();
+                Environment.Exit(0);
+            }
+            catch (Exception ex)
+            {
+                _busy = false;
+                _title.Text = "无法启动安装程序";
+                _status.Text = ex.Message + "\n可以手动运行：" + setupPath;
+                _status.ForeColor = Ui.Red;
+                _close.Enabled = true;
+            }
+        }
+
+        private static bool NeedsElevation(string dir)
+        {
+            try
+            {
+                string pf = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+                string pf86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+                return (!string.IsNullOrEmpty(pf) && dir.StartsWith(pf, StringComparison.OrdinalIgnoreCase))
+                    || (!string.IsNullOrEmpty(pf86) && dir.StartsWith(pf86, StringComparison.OrdinalIgnoreCase));
+            }
+            catch { return false; }
+        }
+
+        private static bool IsAdmin()
+        {
+            try
+            {
+                WindowsIdentity id = WindowsIdentity.GetCurrent();
+                WindowsPrincipal p = new WindowsPrincipal(id);
+                return p.IsInRole(WindowsBuiltInRole.Administrator);
+            }
+            catch { return false; }
+        }
+
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            if (_busy && e.CloseReason == CloseReason.UserClosing)
+            {
+                e.Cancel = true;
+                return;
+            }
+            base.OnFormClosing(e);
+        }
+
+        protected override void OnResize(EventArgs e)
+        {
+            base.OnResize(e);
+            _btnClose = new Rectangle(Width - Ui.Px(32), Ui.Px(6), Ui.Px(22), Ui.Px(22));
+            try
+            {
+                using (GraphicsPath p = Ui.RoundPath(new Rectangle(0, 0, Width, Height), Ui.Px(10)))
+                    Region = new Region(p);
+            }
+            catch { }
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            Graphics g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            using (SolidBrush b = new SolidBrush(Ui.Bg))
+                g.FillRectangle(b, ClientRectangle);
+
+            TextRenderer.DrawText(g, "软件更新", Ui.F12B,
+                new Rectangle(Ui.Px(24), Ui.Px(10), Width - Ui.Px(80), Ui.Px(24)),
+                Ui.Text, TextFormatFlags.NoPadding | TextFormatFlags.SingleLine);
+
+            TextRenderer.DrawText(g, "×", Ui.F10B, _btnClose,
+                _hotClose ? Ui.Text : Ui.TextFaint,
+                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
+
+            using (Pen p = new Pen(Color.FromArgb(255, 40, 45, 55), 1f))
+                g.DrawLine(p, 0, HeaderH - 1, Width, HeaderH - 1);
+
+            using (GraphicsPath path = Ui.RoundPath(new Rectangle(0, 0, Width - 1, Height - 1), Ui.Px(10)))
+            using (Pen p = new Pen(Color.FromArgb(255, 46, 51, 62), 1f))
+                g.DrawPath(p, path);
+        }
+
+        protected override void OnMouseMove(MouseEventArgs e)
+        {
+            base.OnMouseMove(e);
+            bool hot = _btnClose.Contains(e.Location);
+            if (hot != _hotClose) { _hotClose = hot; Cursor = hot ? Cursors.Hand : Cursors.Default; Invalidate(new Rectangle(0, 0, Width, HeaderH)); }
+        }
+
+        protected override void OnMouseDown(MouseEventArgs e)
+        {
+            base.OnMouseDown(e);
+            if (e.Button != MouseButtons.Left) return;
+            if (_btnClose.Contains(e.Location))
+            {
+                if (_busy) return;
+                Close();
+                return;
+            }
+            if (e.Y < HeaderH)
+            {
+                try
+                {
+                    Win32.ReleaseCapture();
+                    Win32.SendMessage(Handle, Win32.WM_NCLBUTTONDOWN, new IntPtr(Win32.HTCAPTION), IntPtr.Zero);
+                }
+                catch { }
+            }
+        }
+    }
+}
