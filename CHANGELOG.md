@@ -3,6 +3,15 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [0.2.1] - 2026-10-20
+
+### Fixed
+
+- **跳转到会话**：VSCode 里的会话现在会直接选中/打开对应的**会话标签页**，而不是只把
+  VSCode 窗口带到前台。优先用 UI Automation 按会话标题选中已经打开的标签；标签没开时，
+  用扩展的 `vscode://anthropic.claude-code/open?session=<id>` 打开后再选中。
+  终端里的会话仍然只激活宿主窗口。
+
 ## [0.2.0] - 2026-10-20
 
 ### Added

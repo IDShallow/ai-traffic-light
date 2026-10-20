@@ -22,6 +22,8 @@
 - **一眼看全**：顶部一盏三色灯 + 会话列表；红=有人等你，黄=工作中，绿=都空闲，品红=出错。
 - **逐会话查看**：每行显示标题、状态、项目名、最后活动时间；点开可看最后提问/回复、
   待办进度、模型、会话 ID、工作目录，并支持「复制会话 ID / 打开目录 / 跳到会话」。
+- **跳到会话**：双击一行，VSCode 里会**直接选中/打开对应的会话标签页**（不是只把窗口带到前台）；
+  标签没开会用扩展的 deep link 先打开。终端里的会话则激活宿主窗口。
 - **总览窗**：每个会话一个小格子，点一下就切到该会话。
 - **提醒**：进入「需要你回答 / 已完成 / 出错」时弹托盘气泡 + 提示音；只在状态跳变时提醒，
   点气泡直接打开并选中该会话。
@@ -182,7 +184,8 @@ Claude Code sessions and shows their live status as a traffic light.
 
 - One aggregated traffic light plus a session list (title, state, project, last activity).
 - Click a row for the last prompt/reply, todo progress, model, session id and working
-  directory; copy the session id, open the folder, or jump to the owning window.
+  directory; copy the session id, open the folder, or **jump straight to that
+  conversation's tab in VS Code** (terminal sessions focus the host window instead).
 - A compact overview window with one tile per session.
 - Tray balloon + sound when a session needs input, finishes, or fails; click to jump.
 - **Privacy mode**: hides conversation titles, prompts, replies, paths and notification

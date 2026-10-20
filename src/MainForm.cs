@@ -565,10 +565,46 @@ namespace ClaudeTrafficLight
         private void OnJumpRequested(SessionInfo s)
         {
             if (s == null) return;
-            bool ok = false;
-            try { ok = Win32.ActivateOwnerWindow(s.Pid); }
+
+            IntPtr hwnd = IntPtr.Zero;
+            bool focused = false;
+            try
+            {
+                hwnd = Win32.FindOwnerWindow(s.Pid);
+                if (hwnd != IntPtr.Zero)
+                {
+                    Win32.ForceForeground(hwnd);
+                    focused = true;
+                }
+            }
             catch { }
-            if (!ok)
+
+            if (string.Equals(s.Entrypoint, "claude-vscode", StringComparison.OrdinalIgnoreCase))
+            {
+                // 1) 会话标签页已经开着：按标题直接选中（VSCode 的会话就是标题命名的标签页）
+                if (hwnd != IntPtr.Zero && !string.IsNullOrEmpty(s.Title) &&
+                    TabFocus.SelectByTitle(hwnd, s.Title))
+                    return;
+
+                // 2) 没开：用扩展登记的 deep link 打开该会话，再选中一次
+                if (!string.IsNullOrEmpty(s.SessionId))
+                {
+                    try
+                    {
+                        System.Threading.Thread.Sleep(120);
+                        string uri = "vscode://anthropic.claude-code/open?session=" +
+                                     Uri.EscapeDataString(s.SessionId);
+                        Process.Start(new ProcessStartInfo(uri) { UseShellExecute = true });
+                        System.Threading.Thread.Sleep(500);
+                        if (hwnd != IntPtr.Zero && !string.IsNullOrEmpty(s.Title))
+                            TabFocus.SelectByTitle(hwnd, s.Title);
+                        return;
+                    }
+                    catch { }
+                }
+            }
+
+            if (!focused)
             {
                 try
                 {

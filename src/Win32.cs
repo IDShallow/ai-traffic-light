@@ -48,7 +48,7 @@ namespace ClaudeTrafficLight
         }
 
         /// <summary>沿父进程链找第一个有主窗口的进程（VSCode 里 claude.exe 的父链最终指向 Code.exe）。</summary>
-        public static bool ActivateOwnerWindow(int pid)
+        public static IntPtr FindOwnerWindow(int pid)
         {
             int cur = pid;
             for (int depth = 0; depth < 8 && cur > 0; depth++)
@@ -56,20 +56,24 @@ namespace ClaudeTrafficLight
                 try
                 {
                     Process p = Process.GetProcessById(cur);
-                    if (p.MainWindowHandle != IntPtr.Zero)
-                    {
-                        ForceForeground(p.MainWindowHandle);
-                        return true;
-                    }
+                    if (p.MainWindowHandle != IntPtr.Zero) return p.MainWindowHandle;
                 }
-                catch { return false; }
+                catch { return IntPtr.Zero; }
 
                 int parent;
-                if (!TryGetParentPid(cur, out parent)) return false;
-                if (parent == cur) return false;
+                if (!TryGetParentPid(cur, out parent)) return IntPtr.Zero;
+                if (parent == cur) return IntPtr.Zero;
                 cur = parent;
             }
-            return false;
+            return IntPtr.Zero;
+        }
+
+        public static bool ActivateOwnerWindow(int pid)
+        {
+            IntPtr hwnd = FindOwnerWindow(pid);
+            if (hwnd == IntPtr.Zero) return false;
+            ForceForeground(hwnd);
+            return true;
         }
 
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]

@@ -8,6 +8,19 @@ if not exist "%CSC%" (
 )
 if not exist "%ROOT%\dist" mkdir "%ROOT%\dist"
 
+rem UIAutomation reference assemblies (for focusing the right VSCode session tab)
+set "PF86=%ProgramFiles(x86)%"
+if not defined PF86 set "PF86=%ProgramFiles%"
+set "UIA_ROOT=%PF86%\Reference Assemblies\Microsoft\Framework\.NETFramework"
+set "UIA_DIR="
+for %%V in (v4.8 v4.7.2 v4.7.1 v4.6.2) do (
+  if not defined UIA_DIR if exist "%UIA_ROOT%\%%V\UIAutomationClient.dll" set "UIA_DIR=%UIA_ROOT%\%%V"
+)
+if not defined UIA_DIR (
+  echo UIAutomation reference assemblies not found under "%UIA_ROOT%"
+  exit /b 1
+)
+
 echo [1/3] icon
 "%CSC%" /nologo /target:exe /out:"%ROOT%\tools\make-icon.exe" /r:System.dll /r:System.Drawing.dll "%ROOT%\tools\make-icon.cs" >nul
 if errorlevel 1 goto fail
@@ -15,7 +28,7 @@ if errorlevel 1 goto fail
 if errorlevel 1 goto fail
 
 echo [2/3] app
-"%CSC%" /nologo /target:winexe /optimize+ /platform:anycpu /win32icon:"%ROOT%\dist\app.ico" /out:"%ROOT%\dist\ClaudeTrafficLight.exe" /r:System.dll /r:System.Core.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll /r:System.Web.Extensions.dll "%ROOT%\src\*.cs"
+"%CSC%" /nologo /target:winexe /optimize+ /platform:anycpu /win32icon:"%ROOT%\dist\app.ico" /out:"%ROOT%\dist\ClaudeTrafficLight.exe" /r:System.dll /r:System.Core.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll /r:System.Web.Extensions.dll /r:"%UIA_DIR%\UIAutomationClient.dll" /r:"%UIA_DIR%\UIAutomationTypes.dll" "%ROOT%\src\*.cs"
 if errorlevel 1 goto fail
 
 echo [3/3] setup
