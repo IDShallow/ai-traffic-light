@@ -55,6 +55,27 @@ namespace ClaudeTrafficLight
             }
         }
 
+        public static string ProviderLabel(string provider)
+        {
+            if (provider == "codex") return "Codex";
+            if (provider == "dsh") return "DSH";
+            return "Claude";
+        }
+
+        public static string ProviderShort(string provider)
+        {
+            if (provider == "codex") return "CDX";
+            if (provider == "dsh") return "DSH";
+            return "CLD";
+        }
+
+        public static Color ProviderColor(string provider)
+        {
+            if (provider == "codex") return Color.FromArgb(16, 163, 127);
+            if (provider == "dsh") return Color.FromArgb(77, 107, 254);
+            return Color.FromArgb(217, 119, 87);
+        }
+
         public static GraphicsPath RoundPath(Rectangle r, int radius)
         {
             GraphicsPath p = new GraphicsPath();

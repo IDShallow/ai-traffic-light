@@ -479,8 +479,27 @@ namespace ClaudeTrafficLight
                 sub += " · " + s.ProjectName;
             if (s.TodoTotal > 0) sub += " · todo " + s.TodoDone + "/" + s.TodoTotal;
 
-            Rectangle sr = new Rectangle(tx, rr.Y + Ui.Px(29),
-                rr.Width - Ui.Px(36) - timeW - Ui.Px(10), Ui.Px(18));
+            int subX = tx;
+            int subMax = rr.Right - timeW - Ui.Px(10) - tx;
+            int subY = rr.Y + Ui.Px(29);
+
+            // 来源徽标：CLD / CDX / DSH
+            if (subMax > Ui.Px(90))
+            {
+                string shortName = Ui.ProviderShort(s.Provider);
+                Size ps = TextRenderer.MeasureText(shortName, Ui.F75);
+                int pw = ps.Width + Ui.Px(8);
+                Rectangle pill = new Rectangle(subX, subY + Ui.Px(1), pw, Ui.Px(15));
+                Color pc = Ui.ProviderColor(s.Provider);
+                Ui.FillRound(g, pill, Ui.Px(4), Color.FromArgb(42, pc));
+                TextRenderer.DrawText(g, shortName, Ui.F75, pill, pc,
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
+                    TextFormatFlags.NoPadding);
+                subX += pw + Ui.Px(6);
+                subMax -= pw + Ui.Px(6);
+            }
+
+            Rectangle sr = new Rectangle(subX, subY, subMax, Ui.Px(18));
             Color subColor = (s.State == SessState.NeedsInput) ? Ui.Red :
                              (s.State == SessState.Error) ? Ui.Magenta :
                              (s.State == SessState.Working) ? Color.FromArgb(220, 200, 150) : Ui.TextDim;
@@ -562,8 +581,8 @@ namespace ClaudeTrafficLight
                         Color.FromArgb(220, Ui.Green));
             }
 
-            string meta = "";
-            if (!string.IsNullOrEmpty(s.Model)) meta = s.Model;
+            string meta = Ui.ProviderLabel(s.Provider);
+            if (!string.IsNullOrEmpty(s.Model)) meta += " · " + s.Model;
             if (s.SessionId.Length >= 8)
                 meta += (meta.Length > 0 ? " · " : "") + s.SessionId.Substring(0, 8);
             if (!string.IsNullOrEmpty(s.Entrypoint))

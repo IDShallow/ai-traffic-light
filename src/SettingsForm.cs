@@ -11,7 +11,7 @@ namespace ClaudeTrafficLight
     internal sealed class SettingsForm : Form
     {
         private readonly AppSettings _settings;
-        private readonly CheckBox[] _checks = new CheckBox[10];
+        private readonly CheckBox[] _checks = new CheckBox[13];
         private Label _hookStatus;
         private Button _hookBtn;
         private Label _updateStatus;
@@ -33,7 +33,7 @@ namespace ClaudeTrafficLight
             ShowInTaskbar = false;
             DoubleBuffered = true;
             TopMost = settings.TopMost;
-            ClientSize = new Size(Ui.Px(470), Ui.Px(640));
+            ClientSize = new Size(Ui.Px(470), Ui.Px(700));
             MinimumSize = Size;
             MaximumSize = Size;
 
@@ -131,6 +131,25 @@ namespace ClaudeTrafficLight
             hint.BackColor = Ui.Bg;
             hint.Location = new Point(x, y);
             Controls.Add(hint);
+
+            // ---- 监控来源 ----
+            y += Ui.Px(84);
+            Label sources = new Label();
+            sources.Text = "监控来源";
+            sources.AutoSize = true;
+            sources.Font = Ui.F75;
+            sources.ForeColor = Ui.TextFaint;
+            sources.BackColor = Ui.Bg;
+            sources.Location = new Point(x, y);
+            Controls.Add(sources);
+            y += Ui.Px(24);
+
+            _checks[10] = AddCheck("Claude Code", x, y, settings.MonitorClaude,
+                delegate { settings.MonitorClaude = _checks[10].Checked; Save(); });
+            _checks[11] = AddCheck("Codex", x + Ui.Px(106), y, settings.MonitorCodex,
+                delegate { settings.MonitorCodex = _checks[11].Checked; Save(); });
+            _checks[12] = AddCheck("DeepSeek Harness", x + Ui.Px(186), y, settings.MonitorDsh,
+                delegate { settings.MonitorDsh = _checks[12].Checked; Save(); });
 
             Button openDir = new Button();
             openDir.Text = "打开配置目录";

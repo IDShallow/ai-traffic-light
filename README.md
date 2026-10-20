@@ -7,11 +7,12 @@
 ![.NET Framework](https://img.shields.io/badge/.NET%20Framework-4.x-512BD4)
 ![No telemetry](https://img.shields.io/badge/telemetry-none-success)
 
-> 一个常驻桌面最上层的 Windows 小工具：用红绿灯显示本机所有 **Claude Code** 会话的当前状态，
-> 在某个会话**需要你回答 / 已完成 / 出错**时提醒你。支持总览窗、隐私模式、托盘与开机自启。
+> 一个常驻桌面最上层的 Windows 小工具：用红绿灯显示本机 **Claude Code / Codex / DeepSeek Harness**
+> 会话的当前状态，在某个会话**需要你回答 / 已完成 / 出错**时提醒你。
+> 支持总览窗、隐私模式、托盘与开机自启。
 >
-> An always-on-top Windows tray app that shows the live status of every local Claude Code
-> session as a traffic light, and notifies you when a session needs input, finishes, or fails.
+> An always-on-top Windows tray app that shows the live status of local **Claude Code,
+> Codex and DeepSeek Harness** sessions as a traffic light.
 
 | 主窗口（隐私模式） | 总览窗（隐私模式） |
 |---|---|
@@ -19,13 +20,15 @@
 
 ## 功能
 
+- **多来源**：同屏监控 **Claude Code / Codex CLI / DeepSeek Harness**；每行带来源徽标
+  （CLD / CDX / DSH），设置里可以分别关闭某个来源。
 - **一眼看全**：顶部一盏三色灯 + 会话列表；红=有人等你，黄=工作中，绿=都空闲，品红=出错。
 - **逐会话查看**：每行显示标题、状态、项目名、最后活动时间；点开可看最后提问/回复、
   待办进度、模型、会话 ID、工作目录，并支持「复制会话 ID / 打开目录 / 跳到会话」。
-- **跳到会话**：双击一行，VSCode 里会**直接选中/打开对应的会话标签页**（不是只把窗口带到前台）；
-  Claude 桌面端里会**直接选中侧边栏里的对应会话**；标签/会话没开时会先尝试用 deep link 打开。
-  终端里的会话则激活宿主窗口。
-- **总览窗**：每个会话一个小格子，显示会话标题；单击选中，双击直接跳到该会话（不打开主窗口）。
+- **跳到会话**：双击一行。Claude Code 在 VSCode 里会**直接选中/打开对应的会话标签页**
+  （标签没开会用扩展的 deep link 先打开）；Claude 桌面端里会**直接选中侧边栏里的对应会话**；
+  Codex / DeepSeek Harness 目前激活宿主窗口，终端里的 Claude 会话则激活宿主窗口。
+- **总览窗**：每个会话一个小格子，显示会话名；单击选中，双击直接跳到该会话（不打开主窗口）。
 - **提醒**：进入「需要你回答 / 已完成 / 出错」时弹托盘气泡 + 提示音；只在状态跳变时提醒，
   点气泡直接打开并选中该会话。
 - **隐私模式**：隐藏对话标题、项目名、提问、回复、目录和通知文案，只保留状态。
@@ -66,15 +69,17 @@
 默认通过 Claude Code 自己的会话注册表判断「忙 / 空闲」。若想精确知道
 「刚需要你回答 / 刚做完 / 刚出错」的瞬间，打开「设置 → 安装钩子」：
 
-- 会给 `~/.claude/settings.json` 加 6 个生命周期钩子（先备份、只增不改、可一键卸载）；
+- 给 `~/.claude/settings.json` 加 6 个生命周期钩子（先备份、只增不改、可一键卸载）；
 - 已经开着的会话需要重开一次才会生效；
 - 不装也完全可用，只是提醒文案会粗一些。
+
+> 钩子只用于 Claude Code。Codex 和 DSH 直接读各自的会话记录判断状态，不需要装东西。
 
 ### 隐私模式
 
 「设置 → 隐私模式」或托盘右键开关。开启后：
 
-- 列表只显示「会话 1 / 会话 2 …」，不显示标题和项目名；
+- 列表只显示「来源 + 序号」（`Claude 1` / `Codex 1` / `DSH 1`），不显示标题和项目名；
 - 详情不显示最后提问 / 回复 / 工作目录；
 - 总览窗只显示状态，但仍保留会话标题，方便直接定位；
 - 托盘通知只显示「有会话需要你回答 / 已完成 / 出错」。
@@ -113,13 +118,15 @@
 
 ## 数据来源与隐私
 
-程序只读取本机 Claude Code 的运行数据，**不修改**（安装钩子除外，且可卸载）：
+程序只读取本机 AI 编程助手的运行数据，**不修改**（安装 Claude 钩子除外，且可卸载）：
 
 | 来源 | 用途 |
 |---|---|
-| `%USERPROFILE%\.claude\sessions\<pid>.json` | 有哪些会话活着、忙 / 等 / 空闲、工作目录 |
-| `%USERPROFILE%\.claude\projects\<slug>\<sessionId>.jsonl` | AI 标题、最后提问/回复、待办进度、API 错误 |
-| 安装钩子后的 `Notification / Stop / ...` 事件 | 精确捕捉「刚需要你回答 / 刚做完 / 刚出错」 |
+| `%USERPROFILE%\.claude\sessions\<pid>.json` | Claude：有哪些会话活着、忙 / 等 / 空闲、工作目录 |
+| `%USERPROFILE%\.claude\projects\<slug>\<sessionId>.jsonl` | Claude：AI 标题、最后提问/回复、待办进度、API 错误 |
+| 安装钩子后的 `Notification / Stop / ...` 事件 | Claude：精确捕捉「刚需要你回答 / 刚做完 / 刚出错」 |
+| `%USERPROFILE%\.codex\sessions\**\rollout-*.jsonl` + `session_index.jsonl` | Codex：会话状态、标题、最后提问/回复 |
+| `%USERPROFILE%\.dsh\storages\session_projcache\sessions\*.json` | DSH：状态、标题、最后一轮问答 |
 
 - **无遥测、无账号、无云端**；唯一的网络请求是你主动点「检查更新」时的更新源请求。
 - 设置存放在 `%APPDATA%\ClaudeTrafficLight`，日志在 `%LOCALAPPDATA%\ClaudeTrafficLight`。
@@ -128,8 +135,10 @@
 ## 已知限制
 
 - 只支持 Windows 10 / 11（依赖 .NET Framework 4.x，系统自带，无需安装运行时）。
-- 「等待你回答」在未安装钩子时依赖 Claude Code 的会话注册表状态；某些权限模式（如 auto）
-  可能不弹出确认框。
+- Claude：「等待你回答」在未安装钩子时依赖会话注册表状态；某些权限模式（如 auto）可能不弹出确认框。
+- Codex：压缩后的 rollout（`.jsonl.zst`）不解析；只监控正在运行或最近更新过的未压缩会话。
+- DeepSeek Harness：只在桌面端运行时显示其会话；关闭后按「已结束」处理（可在设置里打开显示）。
+- 跳转：Claude Code 能精确选中会话标签；Codex / DSH 目前只激活宿主窗口。
 - 托盘气泡是否显示为通知中心消息，取决于 Windows 通知设置。
 - 界面语言目前为中文。
 
@@ -179,18 +188,22 @@ Copyright (C) 2026 IDShallow
 ## English
 
 **Claude Traffic Light** is a small always-on-top Windows app that watches your local
-Claude Code sessions and shows their live status as a traffic light.
+**Claude Code, Codex, and DeepSeek Harness** sessions and shows their live status as a
+traffic light. (The window title is “AI 状态红绿灯” because it now covers multiple agents.)
 
 ### Features
 
-- One aggregated traffic light plus a session list (title, state, project, last activity).
+- One aggregated traffic light plus a session list (title, provider, state, project, last activity).
+- **Multi-source**: Claude Code, Codex CLI and DeepSeek Harness in one list; provider badges
+  (CLD / CDX / DSH) and per-provider toggles in settings.
 - Click a row for the last prompt/reply, todo progress, model, session id and working
-  directory; copy the session id, open the folder, or **jump straight to that
-  conversation's tab in VS Code** (terminal sessions focus the host window instead).
+  directory; copy the session id, open the folder, or jump.
+  Claude Code jumps **straight to that conversation's tab in VS Code**; Codex and DSH
+  currently focus their host window.
 - A compact overview window with one tile per session.
 - Tray balloon + sound when a session needs input, finishes, or fails; click to jump.
 - **Privacy mode**: hides conversation titles, prompts, replies, paths and notification
-  text, leaving only statuses.
+  text, leaving only statuses (aliases look like `Claude 1`, `Codex 1`, `DSH 1`).
 - Tray icon, optional start-at-login, installer with in-place upgrades and in-app updates.
 
 ### Install
@@ -207,9 +220,13 @@ install directory. `%APPDATA%\ClaudeTrafficLight` (settings) is intentionally ke
 
 It reads, read-only:
 
-- `%USERPROFILE%\.claude\sessions\<pid>.json` — live sessions and their state;
-- `%USERPROFILE%\.claude\projects\<slug>\<sessionId>.jsonl` — titles, last messages,
-  todo progress and API errors (incremental tail reads; files can be 100 MB+).
+- `%USERPROFILE%\.claude\sessions\<pid>.json` — live Claude sessions and their state;
+- `%USERPROFILE%\.claude\projects\<slug>\<sessionId>.jsonl` — Claude titles, last messages,
+  todo progress and API errors (incremental tail reads; files can be 100 MB+);
+- `%USERPROFILE%\.codex\sessions\**\rollout-*.jsonl` and `session_index.jsonl` — Codex
+  state and titles (compressed `.jsonl.zst` rollouts are not parsed);
+- `%USERPROFILE%\.dsh\storages\session_projcache\sessions\*.json` — DeepSeek Harness
+  state, title and last turn.
 
 Optionally it installs six Claude Code lifecycle hooks (with a backup, additive only,
 one-click removal) to catch the exact moments a session starts waiting, finishes or fails.

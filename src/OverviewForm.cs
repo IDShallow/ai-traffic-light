@@ -41,7 +41,7 @@ namespace ClaudeTrafficLight
             StartPosition = FormStartPosition.Manual;
             DoubleBuffered = true;
             SetStyle(ControlStyles.StandardDoubleClick, true);
-            Text = "Claude 总览";
+            Text = "AI 总览";
 
             Relayout();
             if (settings.OverviewPos != null && settings.OverviewPos.Length == 2)
@@ -185,6 +185,9 @@ namespace ClaudeTrafficLight
                 bool sel = string.Equals(s.SessionId, _selected, StringComparison.OrdinalIgnoreCase);
 
                 Ui.FillRound(g, r, Ui.Px(8), _hot == i ? Color.FromArgb(255, 38, 42, 51) : Ui.Bg2);
+                Rectangle accent = new Rectangle(r.X + Ui.Px(2), r.Y + Ui.Px(8),
+                    Ui.Px(3), r.Height - Ui.Px(16));
+                Ui.FillRound(g, accent, Ui.Px(1), Ui.ProviderColor(s.Provider));
                 if (sel)
                 {
                     using (GraphicsPath p = Ui.RoundPath(r, Ui.Px(8)))

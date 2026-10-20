@@ -3,6 +3,27 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [0.3.0] - 2026-10-20
+
+### Added
+
+- **多来源监控**：Claude Code / Codex CLI / DeepSeek Harness 的会话同屏显示。
+- 每行带来源徽标（CLD / CDX / DSH），总览窗带来源色条。
+- 设置里可分别关闭某个来源（监控来源：Claude Code / Codex / DeepSeek Harness）。
+- **Codex**：读 `~/.codex/sessions/**/rollout-*.jsonl` 与 `session_index.jsonl`，
+  识别 `task_started` / `task_complete` / `exec_approval_request` / `turn_aborted` / `error`。
+- **DeepSeek Harness**：读 `~/.dsh/storages/session_projcache/sessions/*.json`，
+  识别 `inbox`（等你输入）/ `openStep`（工作中）/ `goal.failure`（出错），
+  并从 `turnOutline` 取最后一轮提问与回复。
+- 隐私模式别名带来源：`Claude 1` / `Codex 1` / `DSH 1`。
+- 界面显示名改为「AI 状态红绿灯」（安装包与程序标识保持 `ClaudeTrafficLight` 不变）。
+
+### Notes
+
+- Codex 的压缩 rollout（`.jsonl.zst`）不解析；只监控活/近期未压缩的会话。
+- DeepSeek Harness 只在桌面端运行时显示其会话；关闭后按「已结束」处理（可在设置里显示）。
+- 跳转：Claude Code 精确选中会话标签；Codex / DSH 目前激活宿主窗口。
+
 ## [0.2.1] - 2026-10-20
 
 ### Changed
