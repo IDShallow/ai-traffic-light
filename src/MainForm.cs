@@ -574,6 +574,11 @@ namespace ClaudeTrafficLight
         {
             if (s == null) return;
 
+            // Codex 桌面端：官方深链直接打开对应会话（不要先去前台聚焦 VS Code）
+            if (string.Equals(s.Provider, "codex", StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrEmpty(s.SessionId) && OpenCodexSession(s.SessionId))
+                return;
+
             bool isVscode = string.Equals(s.Entrypoint, "claude-vscode", StringComparison.OrdinalIgnoreCase);
 
             IntPtr hwnd = IntPtr.Zero;
@@ -636,6 +641,21 @@ namespace ClaudeTrafficLight
                         "这个会话可能已经关闭，或它的宿主窗口不在前台。", ToolTipIcon.None);
                 }
                 catch { }
+            }
+        }
+
+        private static bool OpenCodexSession(string sessionId)
+        {
+            try
+            {
+                string uri = "codex://threads/" + Uri.EscapeDataString(sessionId);
+                Process.Start(new ProcessStartInfo(uri) { UseShellExecute = true });
+                Log.Write("codex jump " + sessionId);
+                return true;
+            }
+            catch
+            {
+                return false;
             }
         }
 

@@ -20,6 +20,8 @@
 
 - **Codex 会话名**：标题查找改用文件名里的会话 ID，老会话不再退回显示 `Codex · <id>`，
   总览与列表显示 Codex 记录的 `thread_name`。
+- **跳到 Codex 会话**：双击 Codex 会话会通过 `codex://threads/<id>` 直接打开
+  ChatGPT/Codex 桌面端里的对应会话，不再错误地切到 VS Code。
 
 ## [0.3.0] - 2026-10-20
 
