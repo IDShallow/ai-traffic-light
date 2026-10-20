@@ -10,13 +10,12 @@ namespace ClaudeTrafficLight
     internal sealed class OverviewForm : Form
     {
         public event Action<string> CellClicked;
+        public event Action<SessionInfo> CellActivated;
         public event Action OpenMainRequested;
         public event Action ClosedByUser;
 
         private readonly AppSettings _settings;
         private readonly Rectangle _anchor;
-        public Func<SessionInfo, string> NameProvider;
-        public bool PrivacyMode;
         private List<SessionInfo> _items = new List<SessionInfo>();
         private string _selected = "";
         private int _hot = -1;
@@ -31,7 +30,7 @@ namespace ClaudeTrafficLight
         {
             _settings = settings;
             _anchor = anchor;
-            _cellW = Ui.Px(76);
+            _cellW = Ui.Px(112);
             _cellH = Ui.Px(56);
             _headerH = Ui.Px(26);
 
@@ -41,6 +40,7 @@ namespace ClaudeTrafficLight
             TopMost = settings.TopMost;
             StartPosition = FormStartPosition.Manual;
             DoubleBuffered = true;
+            SetStyle(ControlStyles.StandardDoubleClick, true);
             Text = "Claude 总览";
 
             Relayout();
@@ -199,8 +199,7 @@ namespace ClaudeTrafficLight
                               (s.Unread && s.State == SessState.Done);
                 Ui.DrawLed(g, cx, cy, Ui.Px(6), c, urgent ? 1f : 0.3f, urgent ? pulse : 0.2f);
 
-                string name = NameProvider != null ? NameProvider(s) : s.DisplayTitle();
-                TextRenderer.DrawText(g, Ui.Shorten(name, PrivacyMode ? 6 : 8), Ui.F75,
+                TextRenderer.DrawText(g, Ui.Shorten(s.DisplayTitle(), 20), Ui.F75,
                     new Rectangle(r.X + Ui.Px(3), r.Y + Ui.Px(25), r.Width - Ui.Px(6), Ui.Px(15)),
                     Ui.Text, TextFormatFlags.HorizontalCenter | TextFormatFlags.NoPadding |
                     TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
@@ -266,6 +265,19 @@ namespace ClaudeTrafficLight
                     catch { }
                 }
             }
+        }
+
+        protected override void OnMouseDoubleClick(MouseEventArgs e)
+        {
+            base.OnMouseDoubleClick(e);
+            if (e.Button != MouseButtons.Left) return;
+
+            int idx = CellAt(e.Location);
+            if (idx < 0) return;
+
+            _selected = _items[idx].SessionId;
+            Invalidate();
+            if (CellActivated != null) CellActivated(_items[idx]);
         }
 
         protected override void OnLocationChanged(EventArgs e)

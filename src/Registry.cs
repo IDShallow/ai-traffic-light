@@ -20,6 +20,7 @@ namespace ClaudeTrafficLight
         public string Entrypoint = "";
         public string Kind = "";
         public string Name = "";
+        public string HostSessionId = "";
         public string ProcStart = "";
         public bool Alive;
         public DateTime CachedAt = DateTime.MinValue;
@@ -103,6 +104,7 @@ namespace ClaudeTrafficLight
                 r.Entrypoint = Json.Str(d, "entrypoint");
                 r.Kind = Json.Str(d, "kind");
                 r.Name = Json.Str(d, "name");
+                r.HostSessionId = Json.Str(d, "hostSessionId");
                 r.ProcStart = Json.Str(d, "procStart");
 
                 long statusMs = Json.Long(d, "statusUpdatedAt", 0);

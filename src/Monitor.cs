@@ -148,6 +148,8 @@ namespace ClaudeTrafficLight
                 st.Info.ProjectName = Ui.BaseName(r.Cwd);
                 st.Info.Entrypoint = r.Entrypoint;
                 st.Info.Kind = r.Kind;
+                st.Info.Name = r.Name;
+                st.Info.HostSessionId = r.HostSessionId;
                 st.Info.StatusRaw = r.Status;
                 st.Info.WaitingFor = r.WaitingFor;
                 st.Info.StatusAt = r.StatusAt;
@@ -583,6 +585,8 @@ namespace ClaudeTrafficLight
             b.SessionId = a.SessionId;
             b.Pid = a.Pid;
             b.Cwd = a.Cwd;
+            b.Name = a.Name;
+            b.HostSessionId = a.HostSessionId;
             b.Title = a.Title;
             b.ProjectName = a.ProjectName;
             b.Entrypoint = a.Entrypoint;
