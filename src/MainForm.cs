@@ -28,6 +28,8 @@ namespace ClaudeTrafficLight
         private SessState _lastOverall = SessState.Offline;
         private bool _trayHintShown;
         private int _hotHeader;
+        private float _scale = 1f;
+        private UiFonts _fonts = Ui.Fonts(1f);
 
         private Rectangle _btnOverview, _btnSettings, _btnMin, _btnClose;
         private ToolStripMenuItem _miPrivacy;
@@ -36,10 +38,24 @@ namespace ClaudeTrafficLight
         private readonly Dictionary<string, int> _aliasCounters =
             new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
-        private int HeaderH { get { return Ui.Px(66); } }
+        private int HeaderH { get { return Px(66); } }
+
+        private int Px(int v) { return (int)Math.Round(v * _scale); }
+
+        private void SetScale(float scale)
+        {
+            if (scale < 0.5f) scale = 0.5f;
+            _scale = scale;
+            _fonts = Ui.Fonts(scale);
+            MinimumSize = new Size(Px(340), Px(300));
+            if (_list != null) _list.SetScale(scale, _fonts);
+        }
 
         public MainForm(AppSettings settings, Monitor monitor, bool startHidden)
         {
+            _scale = Ui.Scale;
+            _fonts = Ui.Fonts(_scale);
+
             _settings = settings;
             _monitor = monitor;
             _startHidden = startHidden;
@@ -51,12 +67,12 @@ namespace ClaudeTrafficLight
             DoubleBuffered = true;
             ShowInTaskbar = true;
             TopMost = settings.TopMost;
-            MinimumSize = new Size(Ui.Px(340), Ui.Px(300));
+            MinimumSize = new Size(Px(340), Px(300));
             StartPosition = FormStartPosition.Manual;
 
-            int w = Ui.Px(430), h = Ui.Px(640);
+            int w = Px(430), h = Px(640);
             if (settings.MainSize != null && settings.MainSize.Length == 2 &&
-                settings.MainSize[0] > Ui.Px(300) && settings.MainSize[1] > Ui.Px(240))
+                settings.MainSize[0] > Px(300) && settings.MainSize[1] > Px(240))
             {
                 w = settings.MainSize[0];
                 h = settings.MainSize[1];
@@ -68,7 +84,7 @@ namespace ClaudeTrafficLight
             else
             {
                 Rectangle wa = Screen.PrimaryScreen.WorkingArea;
-                Location = new Point(wa.Right - w - Ui.Px(24), wa.Top + Ui.Px(24));
+                Location = new Point(wa.Right - w - Px(24), wa.Top + Px(24));
             }
             EnsureOnScreen();
 
@@ -120,6 +136,7 @@ namespace ClaudeTrafficLight
             {
                 _settings.MainPos = new int[] { Left, Top };
                 _settings.MainSize = new int[] { Width, Height };
+                _settings.MainDpi = Math.Max(1, (int)Math.Round(_scale * 96f));
                 _settings.Save();
             }
             catch { }
@@ -169,7 +186,7 @@ namespace ClaudeTrafficLight
             LayoutParts();
             try
             {
-                using (GraphicsPath p = Ui.RoundPath(new Rectangle(0, 0, Width, Height), Ui.Px(12)))
+                using (GraphicsPath p = Ui.RoundPath(new Rectangle(0, 0, Width, Height), Px(12)))
                     Region = new Region(p);
             }
             catch { }
@@ -182,16 +199,54 @@ namespace ClaudeTrafficLight
             }
         }
 
+        protected override void OnLoad(EventArgs e)
+        {
+            base.OnLoad(e);
+
+            // 窗口建出来后才知道自己在哪块屏上：按该屏 DPI 重算缩放与（保存的）尺寸
+            SetScale(DeviceDpi / 96f);
+            if (_settings.MainSize != null && _settings.MainSize.Length == 2 &&
+                _settings.MainDpi > 0 && _settings.MainDpi != DeviceDpi)
+            {
+                Size = new Size(
+                    Math.Max(Px(340), (int)Math.Round(_settings.MainSize[0] * (double)DeviceDpi / _settings.MainDpi)),
+                    Math.Max(Px(300), (int)Math.Round(_settings.MainSize[1] * (double)DeviceDpi / _settings.MainDpi)));
+            }
+            EnsureOnScreen();
+            LayoutParts();
+        }
+
+        protected override void WndProc(ref Message m)
+        {
+            if (m.Msg == Win32.WM_DPICHANGED)
+            {
+                int dpi = Win32.DpiOfWParam(m.WParam);
+                Win32.RECT r = Win32.RectOfLParam(m.LParam);
+
+                SetScale(dpi / 96f);
+                Bounds = new Rectangle(r.Left, r.Top,
+                    Math.Max(Px(340), r.Right - r.Left),
+                    Math.Max(Px(300), r.Bottom - r.Top));
+                EnsureOnScreen();
+                Invalidate(true);
+                Log.Write("main dpi -> " + dpi + " size=" + Width + "x" + Height);
+
+                m.Result = IntPtr.Zero;
+                return;
+            }
+            base.WndProc(ref m);
+        }
+
         private void LayoutParts()
         {
             if (_list != null)
                 _list.Bounds = new Rectangle(0, HeaderH, ClientSize.Width, Math.Max(1, ClientSize.Height - HeaderH));
 
-            int bw = Ui.Px(46), bh = Ui.Px(24);
-            _btnClose = new Rectangle(Width - Ui.Px(30), Ui.Px(9), Ui.Px(24), Ui.Px(24));
-            _btnMin = new Rectangle(Width - Ui.Px(56), Ui.Px(9), Ui.Px(24), Ui.Px(24));
-            _btnSettings = new Rectangle(Width - Ui.Px(110), Ui.Px(9), bw, bh);
-            _btnOverview = new Rectangle(Width - Ui.Px(160), Ui.Px(9), bw, bh);
+            int bw = Px(46), bh = Px(24);
+            _btnClose = new Rectangle(Width - Px(30), Px(9), Px(24), Px(24));
+            _btnMin = new Rectangle(Width - Px(56), Px(9), Px(24), Px(24));
+            _btnSettings = new Rectangle(Width - Px(110), Px(9), bw, bh);
+            _btnOverview = new Rectangle(Width - Px(160), Px(9), bw, bh);
         }
 
         private void EnsureOnScreen()
@@ -238,11 +293,11 @@ namespace ClaudeTrafficLight
             int needs, working, errors, total;
             SessState overall = Aggregate(out needs, out working, out errors, out total);
 
-            Rectangle housing = new Rectangle(Ui.Px(14), Ui.Px(6), Ui.Px(38), Ui.Px(54));
+            Rectangle housing = new Rectangle(Px(14), Px(6), Px(38), Px(54));
             DrawTrafficLight(g, housing, overall, Pulse());
 
-            TextRenderer.DrawText(g, "AI 状态", Ui.F12B,
-                new Rectangle(Ui.Px(64), Ui.Px(11), Width - Ui.Px(64) - Ui.Px(168), Ui.Px(24)),
+            TextRenderer.DrawText(g, "AI 状态", _fonts.F12B,
+                new Rectangle(Px(64), Px(11), Width - Px(64) - Px(168), Px(24)),
                 Ui.Text, TextFormatFlags.NoPadding | TextFormatFlags.SingleLine);
 
             string sub;
@@ -271,8 +326,8 @@ namespace ClaudeTrafficLight
             else if (errors > 0) subColor = Ui.Magenta;
             else if (working > 0) subColor = Ui.Amber;
 
-            TextRenderer.DrawText(g, sub, Ui.F85,
-                new Rectangle(Ui.Px(64), Ui.Px(36), Width - Ui.Px(64) - Ui.Px(168), Ui.Px(20)),
+            TextRenderer.DrawText(g, sub, _fonts.F85,
+                new Rectangle(Px(64), Px(36), Width - Px(64) - Px(168), Px(20)),
                 subColor, TextFormatFlags.NoPadding | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
 
             DrawHeaderButton(g, _btnOverview, "总览", _hotHeader == 1);
@@ -283,23 +338,23 @@ namespace ClaudeTrafficLight
             using (Pen p = new Pen(Color.FromArgb(255, 40, 45, 55), 1f))
                 g.DrawLine(p, 0, HeaderH - 1, Width, HeaderH - 1);
 
-            using (GraphicsPath path = Ui.RoundPath(new Rectangle(0, 0, Width - 1, Height - 1), Ui.Px(12)))
+            using (GraphicsPath path = Ui.RoundPath(new Rectangle(0, 0, Width - 1, Height - 1), Px(12)))
             using (Pen p = new Pen(Color.FromArgb(255, 44, 49, 60), 1f))
                 g.DrawPath(p, path);
         }
 
         private void DrawTrafficLight(Graphics g, Rectangle housing, SessState state, float pulse)
         {
-            Ui.FillRound(g, housing, Ui.Px(9), Color.FromArgb(255, 11, 13, 17));
-            Ui.DrawRound(g, housing, Ui.Px(9), Color.FromArgb(255, 48, 53, 64), 1f);
+            Ui.FillRound(g, housing, Px(9), Color.FromArgb(255, 11, 13, 17));
+            Ui.DrawRound(g, housing, Px(9), Color.FromArgb(255, 48, 53, 64), 1f);
 
             float cx = housing.X + housing.Width / 2f;
-            float r = Ui.Px(8);
+            float r = Px(8);
             float[] cy = new float[]
             {
-                housing.Y + Ui.Px(13),
+                housing.Y + Px(13),
                 housing.Y + housing.Height / 2f,
-                housing.Y + housing.Height - Ui.Px(13)
+                housing.Y + housing.Height - Px(13)
             };
             Color[] cols = new Color[] { Ui.Red, Ui.Amber, Ui.Green };
 
@@ -316,15 +371,15 @@ namespace ClaudeTrafficLight
 
             if (state == SessState.Error && lit == 0)
             {
-                TextRenderer.DrawText(g, "!", Ui.F8B, new Rectangle((int)(cx - r), (int)(cy[0] - r), (int)(r * 2), (int)(r * 2)),
+                TextRenderer.DrawText(g, "!", _fonts.F8B, new Rectangle((int)(cx - r), (int)(cy[0] - r), (int)(r * 2), (int)(r * 2)),
                     Color.White, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
             }
         }
 
         private void DrawHeaderButton(Graphics g, Rectangle r, string text, bool hot)
         {
-            if (hot) Ui.FillRound(g, r, Ui.Px(5), Color.FromArgb(28, 255, 255, 255));
-            TextRenderer.DrawText(g, text, text == "—" || text == "×" ? Ui.F10B : Ui.F8, r,
+            if (hot) Ui.FillRound(g, r, Px(5), Color.FromArgb(28, 255, 255, 255));
+            TextRenderer.DrawText(g, text, text == "—" || text == "×" ? _fonts.F10B : _fonts.F8, r,
                 hot ? Ui.Text : Ui.TextDim,
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
         }
@@ -965,6 +1020,7 @@ namespace ClaudeTrafficLight
             {
                 _settings.MainPos = new int[] { Left, Top };
                 _settings.MainSize = new int[] { Width, Height };
+                _settings.MainDpi = Math.Max(1, (int)Math.Round(_scale * 96f));
                 _settings.Save();
             }
             catch { }

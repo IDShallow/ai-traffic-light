@@ -7,10 +7,31 @@ namespace ClaudeTrafficLight
     internal static class Win32
     {
         public const int WM_NCLBUTTONDOWN = 0xA1;
+        public const int WM_DPICHANGED = 0x02E0;
         public const int HTCAPTION = 2;
         public const int SW_RESTORE = 9;
         private const uint KEYEVENTF_KEYUP = 0x0002;
         private const byte VK_MENU = 0x12;
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct RECT
+        {
+            public int Left, Top, Right, Bottom;
+        }
+
+        /// <summary>系统（主屏）DPI。Win10 1607+；DPI 感知由 app.manifest 声明为 Per-Monitor V2。</summary>
+        [DllImport("user32.dll")]
+        public static extern uint GetDpiForSystem();
+
+        public static int DpiOfWParam(IntPtr wParam)
+        {
+            return (int)(((long)wParam >> 16) & 0xFFFF);
+        }
+
+        public static Win32.RECT RectOfLParam(IntPtr lParam)
+        {
+            return (Win32.RECT)Marshal.PtrToStructure(lParam, typeof(Win32.RECT));
+        }
 
         [DllImport("user32.dll")]
         public static extern bool ReleaseCapture();
@@ -29,9 +50,6 @@ namespace ClaudeTrafficLight
 
         [DllImport("user32.dll")]
         private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
-
-        [DllImport("user32.dll")]
-        public static extern bool SetProcessDPIAware();
 
         public delegate bool EnumWindowProc(IntPtr hWnd, IntPtr lParam);
 

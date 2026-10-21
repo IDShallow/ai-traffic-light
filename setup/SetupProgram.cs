@@ -61,13 +61,21 @@ namespace ClaudeTrafficLight.Setup
 
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
-                try { Win32.SetProcessDPIAware(); } catch { }
+                // DPI 感知由清单声明为 Per-Monitor V2；这里取系统 DPI 兜底
                 try
                 {
-                    using (System.Drawing.Graphics g = System.Drawing.Graphics.FromHwnd(IntPtr.Zero))
-                        Ui.Scale = g.DpiX / 96f;
+                    uint dpi = Win32.GetDpiForSystem();
+                    Ui.Scale = dpi > 0 ? dpi / 96f : 1f;
                 }
-                catch { Ui.Scale = 1f; }
+                catch
+                {
+                    try
+                    {
+                        using (System.Drawing.Graphics g = System.Drawing.Graphics.FromHwnd(IntPtr.Zero))
+                            Ui.Scale = g.DpiX / 96f;
+                    }
+                    catch { Ui.Scale = 1f; }
+                }
                 if (Ui.Scale < 1f) Ui.Scale = 1f;
                 Application.Run(new SetupForm());
             }

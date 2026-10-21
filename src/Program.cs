@@ -40,14 +40,22 @@ namespace ClaudeTrafficLight
                 return;
             }
 
-            try { Win32.SetProcessDPIAware(); }
-            catch { }
+            // DPI 感知由 app.manifest 声明为 Per-Monitor V2；这里取系统 DPI 作为兜底，
+            // 各窗口真正显示时会按自己所在显示器的 DPI 重新计算。
             try
             {
-                using (Graphics g = Graphics.FromHwnd(IntPtr.Zero))
-                    Ui.Scale = g.DpiX / 96f;
+                uint dpi = Win32.GetDpiForSystem();
+                Ui.Scale = dpi > 0 ? dpi / 96f : 1f;
             }
-            catch { Ui.Scale = 1f; }
+            catch
+            {
+                try
+                {
+                    using (Graphics g = Graphics.FromHwnd(IntPtr.Zero))
+                        Ui.Scale = g.DpiX / 96f;
+                }
+                catch { Ui.Scale = 1f; }
+            }
             if (Ui.Scale < 1f) Ui.Scale = 1f;
 
             Application.EnableVisualStyles();

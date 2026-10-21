@@ -28,11 +28,11 @@ if errorlevel 1 goto fail
 if errorlevel 1 goto fail
 
 echo [2/3] app
-"%CSC%" /nologo /target:winexe /optimize+ /platform:anycpu /win32icon:"%ROOT%\dist\app.ico" /out:"%ROOT%\dist\ClaudeTrafficLight.exe" /r:System.dll /r:System.Core.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll /r:System.Web.Extensions.dll /r:"%UIA_DIR%\UIAutomationClient.dll" /r:"%UIA_DIR%\UIAutomationTypes.dll" "%ROOT%\src\*.cs"
+"%CSC%" /nologo /target:winexe /optimize+ /platform:anycpu /win32icon:"%ROOT%\dist\app.ico" /win32manifest:"%ROOT%\src\app.manifest" /out:"%ROOT%\dist\ClaudeTrafficLight.exe" /r:System.dll /r:System.Core.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll /r:System.Web.Extensions.dll /r:"%UIA_DIR%\UIAutomationClient.dll" /r:"%UIA_DIR%\UIAutomationTypes.dll" "%ROOT%\src\*.cs"
 if errorlevel 1 goto fail
 
 echo [3/3] setup
-"%CSC%" /nologo /target:winexe /optimize+ /platform:anycpu /win32icon:"%ROOT%\dist\app.ico" /out:"%ROOT%\dist\ClaudeTrafficLightSetup.exe" /r:System.dll /r:System.Core.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll /r:System.Web.Extensions.dll /r:Microsoft.CSharp.dll /resource:"%ROOT%\dist\ClaudeTrafficLight.exe",Payload "%ROOT%\setup\*.cs" "%ROOT%\src\Json.cs" "%ROOT%\src\Model.cs" "%ROOT%\src\Log.cs" "%ROOT%\src\HooksSetup.cs" "%ROOT%\src\AppInfo.cs" "%ROOT%\src\Ui.cs" "%ROOT%\src\Win32.cs"
+"%CSC%" /nologo /target:winexe /optimize+ /platform:anycpu /win32icon:"%ROOT%\dist\app.ico" /win32manifest:"%ROOT%\src\app.manifest" /out:"%ROOT%\dist\ClaudeTrafficLightSetup.exe" /r:System.dll /r:System.Core.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll /r:System.Web.Extensions.dll /r:Microsoft.CSharp.dll /resource:"%ROOT%\dist\ClaudeTrafficLight.exe",Payload "%ROOT%\setup\*.cs" "%ROOT%\src\Json.cs" "%ROOT%\src\Model.cs" "%ROOT%\src\Log.cs" "%ROOT%\src\HooksSetup.cs" "%ROOT%\src\AppInfo.cs" "%ROOT%\src\Ui.cs" "%ROOT%\src\Win32.cs"
 if errorlevel 1 goto fail
 
 echo BUILD OK

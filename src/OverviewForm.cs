@@ -22,9 +22,11 @@ namespace ClaudeTrafficLight
         private string _selected = "";
         private int _hot = -1;
         private bool _positioned;
+        private float _scale = 1f;
+        private UiFonts _fonts = Ui.Fonts(1f);
 
-        private readonly int _pad = 8;
-        private readonly int _gap = 6;
+        private int _pad = 8;
+        private int _gap = 6;
         private int _cellW, _cellH, _headerH, _cols;
         private Rectangle _btnClose;
 
@@ -32,9 +34,13 @@ namespace ClaudeTrafficLight
         {
             _settings = settings;
             _anchor = anchor;
-            _cellW = Ui.Px(112);
-            _cellH = Ui.Px(56);
-            _headerH = Ui.Px(26);
+            _scale = Ui.Scale;
+            _fonts = Ui.Fonts(_scale);
+            _pad = Px(8);
+            _gap = Px(6);
+            _cellW = Px(112);
+            _cellH = Px(56);
+            _headerH = Px(26);
 
             FormBorderStyle = FormBorderStyle.None;
             BackColor = Ui.Bg;
@@ -49,7 +55,7 @@ namespace ClaudeTrafficLight
             if (settings.OverviewPos != null && settings.OverviewPos.Length == 2)
                 Location = new Point(settings.OverviewPos[0], settings.OverviewPos[1]);
             else
-                Location = new Point(anchor.Left - Width - Ui.Px(10), anchor.Top);
+                Location = new Point(anchor.Left - Width - Px(10), anchor.Top);
             EnsureOnScreen();
 
             ContextMenuStrip menu = new ContextMenuStrip();
@@ -60,6 +66,48 @@ namespace ClaudeTrafficLight
             menu.Items.Add(open);
             menu.Items.Add(close);
             ContextMenuStrip = menu;
+        }
+
+        private int Px(int v) { return (int)Math.Round(v * _scale); }
+
+        private void SetScale(float scale)
+        {
+            if (scale < 0.5f) scale = 0.5f;
+            _scale = scale;
+            _fonts = Ui.Fonts(scale);
+            _pad = Px(8);
+            _gap = Px(6);
+            _cellW = Px(112);
+            _cellH = Px(56);
+            _headerH = Px(26);
+            Relayout();
+        }
+
+        protected override void OnLoad(EventArgs e)
+        {
+            base.OnLoad(e);
+            // 建立窗口后才能拿到所在显示器的 DPI
+            SetScale(DeviceDpi / 96f);
+            EnsureOnScreen();
+        }
+
+        protected override void WndProc(ref Message m)
+        {
+            if (m.Msg == Win32.WM_DPICHANGED)
+            {
+                int dpi = Win32.DpiOfWParam(m.WParam);
+                Win32.RECT r = Win32.RectOfLParam(m.LParam);
+
+                SetScale(dpi / 96f);
+                Location = new Point(r.Left, r.Top);
+                EnsureOnScreen();
+                Invalidate();
+                Log.Write("overview dpi -> " + dpi + " size=" + Width + "x" + Height);
+
+                m.Result = IntPtr.Zero;
+                return;
+            }
+            base.WndProc(ref m);
         }
 
         private void EnsureOnScreen()
@@ -94,7 +142,7 @@ namespace ClaudeTrafficLight
             if (n <= 0)
             {
                 _cols = 1;
-                Size = new Size(Ui.Px(210), _headerH + Ui.Px(58));
+                Size = new Size(Px(210), _headerH + Px(58));
                 return;
             }
             _cols = n <= 4 ? n : 4;
@@ -106,10 +154,10 @@ namespace ClaudeTrafficLight
         protected override void OnResize(EventArgs e)
         {
             base.OnResize(e);
-            _btnClose = new Rectangle(Width - Ui.Px(24), Ui.Px(4), Ui.Px(20), Ui.Px(20));
+            _btnClose = new Rectangle(Width - Px(24), Px(4), Px(20), Px(20));
             try
             {
-                using (GraphicsPath p = Ui.RoundPath(new Rectangle(0, 0, Width, Height), Ui.Px(10)))
+                using (GraphicsPath p = Ui.RoundPath(new Rectangle(0, 0, Width, Height), Px(10)))
                     Region = new Region(p);
             }
             catch { }
@@ -159,17 +207,17 @@ namespace ClaudeTrafficLight
             else if (working > 0) title += " · " + working + " 工作中";
 
             Color tc = needs > 0 ? Ui.Red : errors > 0 ? Ui.Magenta : working > 0 ? Ui.Amber : Ui.TextDim;
-            TextRenderer.DrawText(g, title, Ui.F8, new Rectangle(Ui.Px(10), Ui.Px(4), Width - Ui.Px(36), Ui.Px(18)),
+            TextRenderer.DrawText(g, title, _fonts.F8, new Rectangle(Px(10), Px(4), Width - Px(36), Px(18)),
                 tc, TextFormatFlags.NoPadding | TextFormatFlags.SingleLine | TextFormatFlags.VerticalCenter);
 
-            TextRenderer.DrawText(g, "×", Ui.F8, _btnClose,
+            TextRenderer.DrawText(g, "×", _fonts.F8, _btnClose,
                 _hot == -2 ? Ui.Text : Ui.TextFaint,
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
 
             if (ShownCount() == 0)
             {
-                TextRenderer.DrawText(g, "没有正在运行的会话", Ui.F8,
-                    new Rectangle(0, _headerH, Width, Ui.Px(46)), Ui.TextFaint,
+                TextRenderer.DrawText(g, "没有正在运行的会话", _fonts.F8,
+                    new Rectangle(0, _headerH, Width, Px(46)), Ui.TextFaint,
                     TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
             }
 
@@ -181,36 +229,36 @@ namespace ClaudeTrafficLight
                 Rectangle r = CellRect(i);
                 bool sel = string.Equals(s.SessionId, _selected, StringComparison.OrdinalIgnoreCase);
 
-                Ui.FillRound(g, r, Ui.Px(8), _hot == i ? Color.FromArgb(255, 38, 42, 51) : Ui.Bg2);
-                Rectangle accent = new Rectangle(r.X + Ui.Px(2), r.Y + Ui.Px(8),
-                    Ui.Px(3), r.Height - Ui.Px(16));
-                Ui.FillRound(g, accent, Ui.Px(1), Ui.ProviderColor(s.Provider));
+                Ui.FillRound(g, r, Px(8), _hot == i ? Color.FromArgb(255, 38, 42, 51) : Ui.Bg2);
+                Rectangle accent = new Rectangle(r.X + Px(2), r.Y + Px(8),
+                    Px(3), r.Height - Px(16));
+                Ui.FillRound(g, accent, Px(1), Ui.ProviderColor(s.Provider));
                 if (sel)
                 {
-                    using (GraphicsPath p = Ui.RoundPath(r, Ui.Px(8)))
+                    using (GraphicsPath p = Ui.RoundPath(r, Px(8)))
                     using (Pen pen = new Pen(Color.FromArgb(200, Ui.StateColor(s.State)), 1.4f))
                         g.DrawPath(pen, p);
                 }
 
                 Color c = Ui.StateColor(s.State);
                 float cx = r.X + r.Width / 2f;
-                float cy = r.Y + Ui.Px(15);
+                float cy = r.Y + Px(15);
                 bool urgent = s.State == SessState.NeedsInput || s.State == SessState.Error ||
                               (s.Unread && s.State == SessState.Done);
-                Ui.DrawLed(g, cx, cy, Ui.Px(6), c, urgent ? 1f : 0.3f, urgent ? pulse : 0.2f);
+                Ui.DrawLed(g, cx, cy, Px(6), c, urgent ? 1f : 0.3f, urgent ? pulse : 0.2f);
 
                 string name = NameProvider != null ? NameProvider(s) : s.DisplayTitle();
-                TextRenderer.DrawText(g, Ui.Shorten(name, PrivacyMode ? 8 : 20), Ui.F75,
-                    new Rectangle(r.X + Ui.Px(3), r.Y + Ui.Px(25), r.Width - Ui.Px(6), Ui.Px(15)),
+                TextRenderer.DrawText(g, Ui.Shorten(name, PrivacyMode ? 8 : 20), _fonts.F75,
+                    new Rectangle(r.X + Px(3), r.Y + Px(25), r.Width - Px(6), Px(15)),
                     Ui.Text, TextFormatFlags.HorizontalCenter | TextFormatFlags.NoPadding |
                     TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
 
-                TextRenderer.DrawText(g, s.StateText(), Ui.F75,
-                    new Rectangle(r.X + Ui.Px(3), r.Y + Ui.Px(40), r.Width - Ui.Px(6), Ui.Px(13)),
+                TextRenderer.DrawText(g, s.StateText(), _fonts.F75,
+                    new Rectangle(r.X + Px(3), r.Y + Px(40), r.Width - Px(6), Px(13)),
                     c, TextFormatFlags.HorizontalCenter | TextFormatFlags.NoPadding | TextFormatFlags.SingleLine);
             }
 
-            using (GraphicsPath path = Ui.RoundPath(new Rectangle(0, 0, Width - 1, Height - 1), Ui.Px(10)))
+            using (GraphicsPath path = Ui.RoundPath(new Rectangle(0, 0, Width - 1, Height - 1), Px(10)))
             using (Pen p = new Pen(Color.FromArgb(255, 46, 51, 62), 1f))
                 g.DrawPath(p, path);
         }

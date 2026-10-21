@@ -20,11 +20,18 @@ namespace ClaudeTrafficLight
         private Rectangle _btnClose;
         private bool _hotClose;
         private bool _busy = true;
+        private float _scale = 1f;
+        private UiFonts _fonts = Ui.Fonts(1f);
 
-        private int HeaderH { get { return Ui.Px(42); } }
+        private int Px(int v) { return (int)Math.Round(v * _scale); }
+
+        private int HeaderH { get { return Px(42); } }
 
         public UpdateForm(UpdateInfo info)
         {
+            _scale = Ui.Scale;
+            _fonts = Ui.Fonts(_scale);
+
             _info = info;
 
             Text = "软件更新";
@@ -35,42 +42,42 @@ namespace ClaudeTrafficLight
             ShowInTaskbar = false;
             TopMost = true;
             DoubleBuffered = true;
-            ClientSize = new Size(Ui.Px(430), Ui.Px(180));
+            ClientSize = new Size(Px(430), Px(180));
             MinimumSize = ClientSize;
             MaximumSize = ClientSize;
 
             _title = new Label();
             _title.Text = "正在下载 v" + info.Version + " …";
             _title.AutoSize = true;
-            _title.Font = Ui.F95B;
+            _title.Font = _fonts.F95B;
             _title.ForeColor = Ui.Text;
             _title.BackColor = Ui.Bg;
-            _title.Location = new Point(Ui.Px(24), HeaderH + Ui.Px(12));
+            _title.Location = new Point(Px(24), HeaderH + Px(12));
             Controls.Add(_title);
 
             _bar = new ProgressBar();
             _bar.Minimum = 0;
             _bar.Maximum = 100;
             _bar.Value = 0;
-            _bar.Location = new Point(Ui.Px(24), HeaderH + Ui.Px(44));
-            _bar.Size = new Size(ClientSize.Width - Ui.Px(48), Ui.Px(16));
+            _bar.Location = new Point(Px(24), HeaderH + Px(44));
+            _bar.Size = new Size(ClientSize.Width - Px(48), Px(16));
             Controls.Add(_bar);
 
             _status = new Label();
             _status.Text = "连接更新源…";
             _status.AutoSize = false;
-            _status.Font = Ui.F8;
+            _status.Font = _fonts.F8;
             _status.ForeColor = Ui.TextDim;
             _status.BackColor = Ui.Bg;
-            _status.Location = new Point(Ui.Px(24), HeaderH + Ui.Px(68));
-            _status.Size = new Size(ClientSize.Width - Ui.Px(48), Ui.Px(36));
+            _status.Location = new Point(Px(24), HeaderH + Px(68));
+            _status.Size = new Size(ClientSize.Width - Px(48), Px(36));
             Controls.Add(_status);
 
             _close = new Button();
             _close.Text = "关闭";
-            _close.Size = new Size(Ui.Px(84), Ui.Px(28));
-            _close.Location = new Point(ClientSize.Width - Ui.Px(24) - _close.Width,
-                                        ClientSize.Height - Ui.Px(44));
+            _close.Size = new Size(Px(84), Px(28));
+            _close.Location = new Point(ClientSize.Width - Px(24) - _close.Width,
+                                        ClientSize.Height - Px(44));
             _close.FlatStyle = FlatStyle.Flat;
             _close.FlatAppearance.BorderColor = Ui.Line;
             _close.BackColor = Ui.Bg3;
@@ -181,6 +188,60 @@ namespace ClaudeTrafficLight
             catch { return false; }
         }
 
+        private void ApplyBounds()
+        {
+            MinimumSize = Size.Empty;
+            MaximumSize = Size.Empty;
+            ClientSize = new Size(Px(430), Px(180));
+            MinimumSize = ClientSize;
+            MaximumSize = ClientSize;
+
+            _title.Font = _fonts.F95B;
+            _title.Location = new Point(Px(24), HeaderH + Px(12));
+
+            _bar.Location = new Point(Px(24), HeaderH + Px(44));
+            _bar.Size = new Size(ClientSize.Width - Px(48), Px(16));
+
+            _status.Font = _fonts.F8;
+            _status.Location = new Point(Px(24), HeaderH + Px(68));
+            _status.Size = new Size(ClientSize.Width - Px(48), Px(36));
+
+            _close.Size = new Size(Px(84), Px(28));
+            _close.Location = new Point(ClientSize.Width - Px(24) - _close.Width,
+                                        ClientSize.Height - Px(44));
+        }
+
+        protected override void OnLoad(EventArgs e)
+        {
+            base.OnLoad(e);
+            float sc = DeviceDpi / 96f;
+            if (Math.Abs(sc - _scale) > 0.01f)
+            {
+                _scale = sc;
+                _fonts = Ui.Fonts(sc);
+                ApplyBounds();
+            }
+        }
+
+        protected override void WndProc(ref Message m)
+        {
+            if (m.Msg == Win32.WM_DPICHANGED)
+            {
+                int dpi = Win32.DpiOfWParam(m.WParam);
+                Win32.RECT r = Win32.RectOfLParam(m.LParam);
+
+                _scale = dpi / 96f;
+                if (_scale < 0.5f) _scale = 0.5f;
+                _fonts = Ui.Fonts(_scale);
+                ApplyBounds();
+                Location = new Point(r.Left, r.Top);
+
+                m.Result = IntPtr.Zero;
+                return;
+            }
+            base.WndProc(ref m);
+        }
+
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
             if (_busy && e.CloseReason == CloseReason.UserClosing)
@@ -194,10 +255,10 @@ namespace ClaudeTrafficLight
         protected override void OnResize(EventArgs e)
         {
             base.OnResize(e);
-            _btnClose = new Rectangle(Width - Ui.Px(32), Ui.Px(6), Ui.Px(22), Ui.Px(22));
+            _btnClose = new Rectangle(Width - Px(32), Px(6), Px(22), Px(22));
             try
             {
-                using (GraphicsPath p = Ui.RoundPath(new Rectangle(0, 0, Width, Height), Ui.Px(10)))
+                using (GraphicsPath p = Ui.RoundPath(new Rectangle(0, 0, Width, Height), Px(10)))
                     Region = new Region(p);
             }
             catch { }
@@ -210,18 +271,18 @@ namespace ClaudeTrafficLight
             using (SolidBrush b = new SolidBrush(Ui.Bg))
                 g.FillRectangle(b, ClientRectangle);
 
-            TextRenderer.DrawText(g, "软件更新", Ui.F12B,
-                new Rectangle(Ui.Px(24), Ui.Px(10), Width - Ui.Px(80), Ui.Px(24)),
+            TextRenderer.DrawText(g, "软件更新", _fonts.F12B,
+                new Rectangle(Px(24), Px(10), Width - Px(80), Px(24)),
                 Ui.Text, TextFormatFlags.NoPadding | TextFormatFlags.SingleLine);
 
-            TextRenderer.DrawText(g, "×", Ui.F10B, _btnClose,
+            TextRenderer.DrawText(g, "×", _fonts.F10B, _btnClose,
                 _hotClose ? Ui.Text : Ui.TextFaint,
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
 
             using (Pen p = new Pen(Color.FromArgb(255, 40, 45, 55), 1f))
                 g.DrawLine(p, 0, HeaderH - 1, Width, HeaderH - 1);
 
-            using (GraphicsPath path = Ui.RoundPath(new Rectangle(0, 0, Width - 1, Height - 1), Ui.Px(10)))
+            using (GraphicsPath path = Ui.RoundPath(new Rectangle(0, 0, Width - 1, Height - 1), Px(10)))
             using (Pen p = new Pen(Color.FromArgb(255, 46, 51, 62), 1f))
                 g.DrawPath(p, path);
         }

@@ -42,17 +42,31 @@ namespace ClaudeTrafficLight
         private bool _resizing;
         private Point _resizeStart;
         private Size _resizeFormStart;
+        private float _scale = 1f;
+        private UiFonts _fonts = Ui.Fonts(1f);
 
-        private int RowH { get { return Ui.Px(58); } }
-        private int DetailH { get { return Ui.Px(208); } }
-        private int Pad { get { return Ui.Px(8); } }
+        private int Px(int v) { return (int)Math.Round(v * _scale); }
+
+        /// <summary>窗口跨到另一块 DPI 不同的屏幕时，由主窗口调用重算行高/字号。</summary>
+        public void SetScale(float scale, UiFonts fonts)
+        {
+            if (scale < 0.5f) scale = 0.5f;
+            _scale = scale;
+            _fonts = fonts ?? Ui.Fonts(scale);
+            ClampScroll();
+            Invalidate();
+        }
+
+        private int RowH { get { return Px(58); } }
+        private int DetailH { get { return Px(208); } }
+        private int Pad { get { return Px(8); } }
 
         private int QuickH(SessionInfo s)
         {
             if (s == null || PrivacyMode || s.PendingOptions == null || s.PendingOptions.Length == 0)
                 return 0;
             int n = Math.Min(s.PendingOptions.Length, 5);
-            return Ui.Px(40 + n * 30);
+            return Px(40 + n * 30);
         }
 
         private int DetailHeight(SessionInfo s)
@@ -62,6 +76,9 @@ namespace ClaudeTrafficLight
 
         public SessionList()
         {
+            _scale = Ui.Scale;
+            _fonts = Ui.Fonts(_scale);
+
             SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint |
                      ControlStyles.UserPaint | ControlStyles.Selectable, true);
             BackColor = Ui.Bg;
@@ -159,14 +176,14 @@ namespace ClaudeTrafficLight
         protected override void OnMouseWheel(MouseEventArgs e)
         {
             base.OnMouseWheel(e);
-            _scroll -= (e.Delta / 120) * Ui.Px(54);
+            _scroll -= (e.Delta / 120) * Px(54);
             ClampScroll();
             Invalidate();
         }
 
         private bool InGrip(Point p)
         {
-            int s = Ui.Px(16);
+            int s = Px(16);
             return p.X >= Width - s && p.Y >= Height - s;
         }
 
@@ -190,7 +207,7 @@ namespace ClaudeTrafficLight
             {
                 int contentH = ContentHeight();
                 int trackH = Height - Pad * 2;
-                int thumbH = Math.Max(Ui.Px(26), trackH * Height / Math.Max(1, contentH));
+                int thumbH = Math.Max(Px(26), trackH * Height / Math.Max(1, contentH));
                 int span = Math.Max(1, trackH - thumbH);
                 int maxScroll = Math.Max(1, contentH - Height);
                 int dy = e.Y - _dragStartY;
@@ -388,7 +405,7 @@ namespace ClaudeTrafficLight
 
         private bool IsOnScrollbar(int x)
         {
-            return ContentHeight() > Height && x >= Width - Ui.Px(8);
+            return ContentHeight() > Height && x >= Width - Px(8);
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -436,15 +453,15 @@ namespace ClaudeTrafficLight
                 }
 
                 bool hot = (_hot == i && !sel);
-                if (sel) Ui.FillRound(g, rr, Ui.Px(10), Ui.Bg2);
-                else if (hot) Ui.FillRound(g, rr, Ui.Px(10), Color.FromArgb(25, 255, 255, 255));
+                if (sel) Ui.FillRound(g, rr, Px(10), Ui.Bg2);
+                else if (hot) Ui.FillRound(g, rr, Px(10), Color.FromArgb(25, 255, 255, 255));
 
                 DrawRow(g, rr, s, sel, pulse);
                 if (sel) DrawDetail(g, rr, s, pulse);
                 else if (i < _items.Count - 1)
                 {
                     using (Pen p = new Pen(Color.FromArgb(28, 255, 255, 255), 1f))
-                        g.DrawLine(p, rr.X + Ui.Px(14), rr.Bottom - 1, rr.Right - Ui.Px(14), rr.Bottom - 1);
+                        g.DrawLine(p, rr.X + Px(14), rr.Bottom - 1, rr.Right - Px(14), rr.Bottom - 1);
                 }
 
                 y += h;
@@ -456,36 +473,36 @@ namespace ClaudeTrafficLight
 
         private void DrawGrip(Graphics g)
         {
-            int x = Width - Ui.Px(5);
-            int y = Height - Ui.Px(5);
+            int x = Width - Px(5);
+            int y = Height - Px(5);
             using (Pen p = new Pen(Color.FromArgb(70, 255, 255, 255), 1f))
             {
                 for (int i = 0; i < 3; i++)
-                    g.DrawLine(p, x - i * Ui.Px(4), y, x, y - i * Ui.Px(4));
+                    g.DrawLine(p, x - i * Px(4), y, x, y - i * Px(4));
             }
         }
 
         private void DrawEmpty(Graphics g)
         {
-            int cy = Height / 2 - Ui.Px(20);
+            int cy = Height / 2 - Px(20);
             string t = "没有正在运行的 Claude 会话";
             string sub = "打开一个 Claude Code 对话就会出现在这里";
-            Size ts = TextRenderer.MeasureText(t, Ui.F10B);
-            Size ss = TextRenderer.MeasureText(sub, Ui.F8);
-            TextRenderer.DrawText(g, t, Ui.F10B,
+            Size ts = TextRenderer.MeasureText(t, _fonts.F10B);
+            Size ss = TextRenderer.MeasureText(sub, _fonts.F8);
+            TextRenderer.DrawText(g, t, _fonts.F10B,
                 new Rectangle(0, cy, Width, ts.Height), Ui.TextDim,
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.NoPadding);
-            TextRenderer.DrawText(g, sub, Ui.F8,
-                new Rectangle(0, cy + ts.Height + Ui.Px(8), Width, ss.Height), Ui.TextFaint,
+            TextRenderer.DrawText(g, sub, _fonts.F8,
+                new Rectangle(0, cy + ts.Height + Px(8), Width, ss.Height), Ui.TextFaint,
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.NoPadding);
         }
 
         private void DrawRow(Graphics g, Rectangle rr, SessionInfo s, bool sel, float pulse)
         {
             Color c = Ui.StateColor(s.State);
-            float cx = rr.X + Ui.Px(19);
-            float cy = rr.Y + RowH / 2f - Ui.Px(2);
-            float radius = Ui.Px(6);
+            float cx = rr.X + Px(19);
+            float cy = rr.Y + RowH / 2f - Px(2);
+            float radius = Px(6);
 
             bool urgent = s.State == SessState.NeedsInput || s.State == SessState.Error ||
                           (s.State == SessState.Working) || (s.Unread && s.State == SessState.Done);
@@ -508,10 +525,10 @@ namespace ClaudeTrafficLight
                 }
             }
 
-            int tx = rr.X + Ui.Px(36);
-            int timeW = Ui.Px(66);
-            Rectangle tr = new Rectangle(tx, rr.Y + Ui.Px(8), rr.Width - Ui.Px(36) - timeW - Ui.Px(10), Ui.Px(22));
-            TextRenderer.DrawText(g, NameOf(s), Ui.F95B, tr, Ui.Text, Ui.TfSingle);
+            int tx = rr.X + Px(36);
+            int timeW = Px(66);
+            Rectangle tr = new Rectangle(tx, rr.Y + Px(8), rr.Width - Px(36) - timeW - Px(10), Px(22));
+            TextRenderer.DrawText(g, NameOf(s), _fonts.F95B, tr, Ui.Text, Ui.TfSingle);
 
             string sub = s.StateText();
             if (!PrivacyMode && !string.IsNullOrEmpty(s.ProjectName) && s.ProjectName != s.DisplayTitle())
@@ -519,82 +536,82 @@ namespace ClaudeTrafficLight
             if (s.TodoTotal > 0) sub += " · todo " + s.TodoDone + "/" + s.TodoTotal;
 
             int subX = tx;
-            int subMax = rr.Right - timeW - Ui.Px(10) - tx;
-            int subY = rr.Y + Ui.Px(29);
+            int subMax = rr.Right - timeW - Px(10) - tx;
+            int subY = rr.Y + Px(29);
 
             // 来源徽标：CLD / CDX / DSH
-            if (subMax > Ui.Px(90))
+            if (subMax > Px(90))
             {
                 string shortName = Ui.ProviderShort(s.Provider);
-                Size ps = TextRenderer.MeasureText(shortName, Ui.F75);
-                int pw = ps.Width + Ui.Px(8);
-                Rectangle pill = new Rectangle(subX, subY + Ui.Px(1), pw, Ui.Px(15));
+                Size ps = TextRenderer.MeasureText(shortName, _fonts.F75);
+                int pw = ps.Width + Px(8);
+                Rectangle pill = new Rectangle(subX, subY + Px(1), pw, Px(15));
                 Color pc = Ui.ProviderColor(s.Provider);
-                Ui.FillRound(g, pill, Ui.Px(4), Color.FromArgb(42, pc));
-                TextRenderer.DrawText(g, shortName, Ui.F75, pill, pc,
+                Ui.FillRound(g, pill, Px(4), Color.FromArgb(42, pc));
+                TextRenderer.DrawText(g, shortName, _fonts.F75, pill, pc,
                     TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
                     TextFormatFlags.NoPadding);
-                subX += pw + Ui.Px(6);
-                subMax -= pw + Ui.Px(6);
+                subX += pw + Px(6);
+                subMax -= pw + Px(6);
             }
 
-            Rectangle sr = new Rectangle(subX, subY, subMax, Ui.Px(18));
+            Rectangle sr = new Rectangle(subX, subY, subMax, Px(18));
             Color subColor = (s.State == SessState.NeedsInput) ? Ui.Red :
                              (s.State == SessState.Error) ? Ui.Magenta :
                              (s.State == SessState.Working) ? Color.FromArgb(220, 200, 150) : Ui.TextDim;
-            TextRenderer.DrawText(g, sub, Ui.F85, sr, subColor, Ui.TfSingle);
+            TextRenderer.DrawText(g, sub, _fonts.F85, sr, subColor, Ui.TfSingle);
 
-            Rectangle timeR = new Rectangle(rr.Right - timeW - Ui.Px(6), rr.Y + Ui.Px(9),
-                timeW, Ui.Px(18));
-            TextRenderer.DrawText(g, Ui.HumanizeAgo(s.LastActivity), Ui.F75, timeR, Ui.TextFaint,
+            Rectangle timeR = new Rectangle(rr.Right - timeW - Px(6), rr.Y + Px(9),
+                timeW, Px(18));
+            TextRenderer.DrawText(g, Ui.HumanizeAgo(s.LastActivity), _fonts.F75, timeR, Ui.TextFaint,
                 TextFormatFlags.Right | TextFormatFlags.NoPadding | TextFormatFlags.SingleLine |
                 TextFormatFlags.VerticalCenter);
 
             if (s.Unread)
             {
                 using (SolidBrush b = new SolidBrush(c))
-                    g.FillEllipse(b, rr.Right - Ui.Px(13), rr.Y + Ui.Px(34), Ui.Px(6), Ui.Px(6));
+                    g.FillEllipse(b, rr.Right - Px(13), rr.Y + Px(34), Px(6), Px(6));
             }
         }
 
         private void DrawDetail(Graphics g, Rectangle rr, SessionInfo s, float pulse)
         {
-            Rectangle det = new Rectangle(rr.X + Ui.Px(8), rr.Y + RowH - Ui.Px(6),
-                rr.Width - Ui.Px(16), DetailHeight(s) - Ui.Px(10));
+            Rectangle det = new Rectangle(rr.X + Px(8), rr.Y + RowH - Px(6),
+                rr.Width - Px(16), DetailHeight(s) - Px(10));
             _quickRects.Clear();
             _quickLabels.Clear();
-            Ui.FillRound(g, det, Ui.Px(10), Color.FromArgb(255, 30, 34, 42));
+            Ui.FillRound(g, det, Px(10), Color.FromArgb(255, 30, 34, 42));
 
             Color c = Ui.StateColor(s.State);
-            using (GraphicsPath p = Ui.RoundPath(new Rectangle(det.X + Ui.Px(2), det.Y + Ui.Px(12),
-                       Ui.Px(3), det.Height - Ui.Px(24)), Ui.Px(2)))
+            using (GraphicsPath p = Ui.RoundPath(new Rectangle(det.X + Px(2), det.Y + Px(12),
+                       Px(3), det.Height - Px(24)), Px(2)))
             using (SolidBrush b = new SolidBrush(Color.FromArgb(200, c)))
                 g.FillPath(b, p);
 
-            int x = det.X + Ui.Px(14);
-            int w = det.Width - Ui.Px(24);
+            int x = det.X + Px(14);
+            int w = det.Width - Px(24);
 
             if (PrivacyMode)
             {
-                Ui.FillRound(g, new Rectangle(x, det.Y + Ui.Px(16), w, Ui.Px(84)), Ui.Px(8),
+                Ui.FillRound(g, new Rectangle(x, det.Y + Px(16), w, Px(84)), Px(8),
                     Color.FromArgb(255, 34, 38, 46));
-                TextRenderer.DrawText(g, "隐私模式", Ui.F95B,
-                    new Rectangle(x + Ui.Px(10), det.Y + Ui.Px(26), w - Ui.Px(20), Ui.Px(20)),
+                TextRenderer.DrawText(g, "隐私模式", _fonts.F95B,
+                    new Rectangle(x + Px(10), det.Y + Px(26), w - Px(20), Px(20)),
                     Ui.TextDim, TextFormatFlags.NoPadding | TextFormatFlags.SingleLine);
-                TextRenderer.DrawText(g, "对话标题、提问与回复均不显示，只保留状态。", Ui.F8,
-                    new Rectangle(x + Ui.Px(10), det.Y + Ui.Px(48), w - Ui.Px(20), Ui.Px(34)),
+                TextRenderer.DrawText(g, "对话标题、提问与回复均不显示，只保留状态。", _fonts.F8,
+                    new Rectangle(x + Px(10), det.Y + Px(48), w - Px(20), Px(34)),
                     Ui.TextFaint, Ui.TfWrap);
             }
             else
             {
-                TextRenderer.DrawText(g, "最后提问", Ui.F75, new Rectangle(x, det.Y + Ui.Px(9), w, Ui.Px(14)),
+                TextRenderer.DrawText(g, "最后提问", _fonts.F75, new Rectangle(x, det.Y + Px(9), w, Px(14)),
                     Ui.TextFaint, TextFormatFlags.NoPadding | TextFormatFlags.SingleLine);
 
                 string prompt = string.IsNullOrEmpty(s.LastPrompt) ? "（还没有提问）" : s.LastPrompt;
-                TextRenderer.DrawText(g, prompt, Ui.F85, new Rectangle(x, det.Y + Ui.Px(24), w, Ui.Px(32)),
+                TextRenderer.DrawText(g, prompt, _fonts.F85, new Rectangle(x, det.Y + Px(24), w, Px(32)),
                     Ui.TextDim, Ui.TfWrap | TextFormatFlags.EndEllipsis);
 
-                TextRenderer.DrawText(g, "最后回复", Ui.F75, new Rectangle(x, det.Y + Ui.Px(60), w, Ui.Px(14)),
+                TextRenderer.DrawText(g, "最后回复", _fonts.F75, new Rectangle(x, det.Y + Px(60), w, Px(14)),
                     Ui.TextFaint, TextFormatFlags.NoPadding | TextFormatFlags.SingleLine);
 
                 string reply = s.State == SessState.Error && !string.IsNullOrEmpty(s.ErrorText)
@@ -603,7 +620,7 @@ namespace ClaudeTrafficLight
                         ? (s.State == SessState.Working ? "（正在处理…）" : "（还没有回复）")
                         : s.LastAssistant);
                 Color replyColor = s.State == SessState.Error ? Color.FromArgb(245, 170, 245) : Ui.Text;
-                TextRenderer.DrawText(g, reply, Ui.F85, new Rectangle(x, det.Y + Ui.Px(74), w, Ui.Px(44)),
+                TextRenderer.DrawText(g, reply, _fonts.F85, new Rectangle(x, det.Y + Px(74), w, Px(44)),
                     replyColor, Ui.TfWrap | TextFormatFlags.EndEllipsis);
             }
 
@@ -611,14 +628,14 @@ namespace ClaudeTrafficLight
             if (s.TodoTotal > 0)
             {
                 string todo = "待办 " + s.TodoDone + "/" + s.TodoTotal;
-                TextRenderer.DrawText(g, todo, Ui.F75, new Rectangle(x, det.Y + Ui.Px(122), w, Ui.Px(14)),
+                TextRenderer.DrawText(g, todo, _fonts.F75, new Rectangle(x, det.Y + Px(122), w, Px(14)),
                     Ui.TextFaint, TextFormatFlags.NoPadding | TextFormatFlags.SingleLine);
 
-                Rectangle track = new Rectangle(x + Ui.Px(60), det.Y + Ui.Px(127), w - Ui.Px(60), Ui.Px(5));
-                Ui.FillRound(g, track, Ui.Px(3), Color.FromArgb(45, 255, 255, 255));
+                Rectangle track = new Rectangle(x + Px(60), det.Y + Px(127), w - Px(60), Px(5));
+                Ui.FillRound(g, track, Px(3), Color.FromArgb(45, 255, 255, 255));
                 int fillW = (int)(track.Width * (s.TodoDone / (float)s.TodoTotal));
                 if (fillW > 2)
-                    Ui.FillRound(g, new Rectangle(track.X, track.Y, fillW, track.Height), Ui.Px(3),
+                    Ui.FillRound(g, new Rectangle(track.X, track.Y, fillW, track.Height), Px(3),
                         Color.FromArgb(220, Ui.Green));
             }
 
@@ -630,15 +647,15 @@ namespace ClaudeTrafficLight
                 meta += " · " + s.Entrypoint;
             if (!PrivacyMode && !string.IsNullOrEmpty(s.Cwd))
                 meta += " · " + Ui.Shorten(s.Cwd, 40);
-            TextRenderer.DrawText(g, meta, Ui.F75, new Rectangle(x, det.Y + Ui.Px(142), w, Ui.Px(14)),
+            TextRenderer.DrawText(g, meta, _fonts.F75, new Rectangle(x, det.Y + Px(142), w, Px(14)),
                 Ui.TextFaint, TextFormatFlags.NoPadding | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
 
             // 按钮
-            int by = det.Y + Ui.Px(162);
-            int bh = Ui.Px(24);
+            int by = det.Y + Px(162);
+            int bh = Px(24);
             _btnCopy = MakeButton(g, "复制会话 ID", x, by, bh);
-            _btnFolder = MakeButton(g, "打开目录", _btnCopy.Right + Ui.Px(6), by, bh);
-            _btnJump = MakeButton(g, "跳到会话", _btnFolder.Right + Ui.Px(6), by, bh);
+            _btnFolder = MakeButton(g, "打开目录", _btnCopy.Right + Px(6), by, bh);
+            _btnJump = MakeButton(g, "跳到会话", _btnFolder.Right + Px(6), by, bh);
 
             DrawButton(g, _btnCopy, "复制会话 ID", _hotAction == 1);
             DrawButton(g, _btnFolder, "打开目录", _hotAction == 2);
@@ -647,36 +664,36 @@ namespace ClaudeTrafficLight
             // 待回答的 AskUserQuestion：选项按钮（点击 = 预填到输入框，回车发送）
             if (QuickH(s) > 0)
             {
-                int qy = det.Y + Ui.Px(196);
+                int qy = det.Y + Px(196);
                 using (Pen p = new Pen(Color.FromArgb(40, 255, 255, 255), 1f))
-                    g.DrawLine(p, x, qy - Ui.Px(6), x + w, qy - Ui.Px(6));
+                    g.DrawLine(p, x, qy - Px(6), x + w, qy - Px(6));
 
                 string head = "需要你回答";
                 if (!string.IsNullOrEmpty(s.PendingHeader)) head += "：" + s.PendingHeader;
-                TextRenderer.DrawText(g, Ui.Shorten(head, 60), Ui.F75,
-                    new Rectangle(x, qy, w, Ui.Px(14)), Ui.TextFaint,
+                TextRenderer.DrawText(g, Ui.Shorten(head, 60), _fonts.F75,
+                    new Rectangle(x, qy, w, Px(14)), Ui.TextFaint,
                     TextFormatFlags.NoPadding | TextFormatFlags.SingleLine);
 
                 string question = string.IsNullOrEmpty(s.PendingQuestion) ? "请选择：" : s.PendingQuestion;
-                TextRenderer.DrawText(g, Ui.Shorten(question, 100), Ui.F85,
-                    new Rectangle(x, qy + Ui.Px(15), w, Ui.Px(18)), Ui.Text,
+                TextRenderer.DrawText(g, Ui.Shorten(question, 100), _fonts.F85,
+                    new Rectangle(x, qy + Px(15), w, Px(18)), Ui.Text,
                     TextFormatFlags.NoPadding | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
 
-                int optY = qy + Ui.Px(38);
+                int optY = qy + Px(38);
                 int n = Math.Min(s.PendingOptions.Length, 5);
                 for (int i = 0; i < n; i++)
                 {
-                    Rectangle r = new Rectangle(x, optY + i * Ui.Px(30), w, Ui.Px(26));
+                    Rectangle r = new Rectangle(x, optY + i * Px(30), w, Px(26));
                     _quickRects.Add(r);
                     _quickLabels.Add(s.PendingOptions[i]);
 
                     bool hot = (_hotQuick == i);
-                    Ui.FillRound(g, r, Ui.Px(6),
+                    Ui.FillRound(g, r, Px(6),
                         hot ? Color.FromArgb(255, 48, 54, 66) : Color.FromArgb(255, 38, 43, 52));
-                    Ui.DrawRound(g, r, Ui.Px(6),
+                    Ui.DrawRound(g, r, Px(6),
                         hot ? Color.FromArgb(200, Ui.ProviderColor(s.Provider)) : Ui.Line, 1f);
-                    TextRenderer.DrawText(g, (i + 1) + ". " + s.PendingOptions[i], Ui.F85,
-                        new Rectangle(r.X + Ui.Px(10), r.Y, r.Width - Ui.Px(20), r.Height), Ui.Text,
+                    TextRenderer.DrawText(g, (i + 1) + ". " + s.PendingOptions[i], _fonts.F85,
+                        new Rectangle(r.X + Px(10), r.Y, r.Width - Px(20), r.Height), Ui.Text,
                         TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding |
                         TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
                 }
@@ -685,15 +702,15 @@ namespace ClaudeTrafficLight
 
         private Rectangle MakeButton(Graphics g, string text, int x, int y, int h)
         {
-            Size sz = TextRenderer.MeasureText(text, Ui.F75);
-            return new Rectangle(x, y, sz.Width + Ui.Px(18), h);
+            Size sz = TextRenderer.MeasureText(text, _fonts.F75);
+            return new Rectangle(x, y, sz.Width + Px(18), h);
         }
 
         private void DrawButton(Graphics g, Rectangle r, string text, bool hot)
         {
-            Ui.FillRound(g, r, Ui.Px(6), hot ? Ui.Bg3 : Color.FromArgb(255, 38, 43, 52));
-            Ui.DrawRound(g, r, Ui.Px(6), Ui.Line, 1f);
-            TextRenderer.DrawText(g, text, Ui.F75, r, hot ? Ui.Text : Ui.TextDim,
+            Ui.FillRound(g, r, Px(6), hot ? Ui.Bg3 : Color.FromArgb(255, 38, 43, 52));
+            Ui.DrawRound(g, r, Px(6), Ui.Line, 1f);
+            TextRenderer.DrawText(g, text, _fonts.F75, r, hot ? Ui.Text : Ui.TextDim,
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
         }
 
@@ -703,14 +720,14 @@ namespace ClaudeTrafficLight
             if (contentH <= Height) return;
 
             int trackH = Height - Pad * 2;
-            int thumbH = Math.Max(Ui.Px(26), trackH * Height / Math.Max(1, contentH));
+            int thumbH = Math.Max(Px(26), trackH * Height / Math.Max(1, contentH));
             int maxScroll = Math.Max(1, contentH - Height);
             int span = Math.Max(1, trackH - thumbH);
             int thumbY = Pad + (int)((long)_scroll * span / maxScroll);
 
-            Rectangle track = new Rectangle(Width - Ui.Px(6), Pad, Ui.Px(3), trackH);
-            Ui.FillRound(g, track, Ui.Px(2), Color.FromArgb(20, 255, 255, 255));
-            Ui.FillRound(g, new Rectangle(track.X, thumbY, track.Width, thumbH), Ui.Px(2),
+            Rectangle track = new Rectangle(Width - Px(6), Pad, Px(3), trackH);
+            Ui.FillRound(g, track, Px(2), Color.FromArgb(20, 255, 255, 255));
+            Ui.FillRound(g, new Rectangle(track.X, thumbY, track.Width, thumbH), Px(2),
                 Color.FromArgb(80, 255, 255, 255));
         }
     }

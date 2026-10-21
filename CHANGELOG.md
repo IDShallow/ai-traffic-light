@@ -3,6 +3,17 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [0.5.2] - 2026-10-21
+
+### Fixed
+
+- **每屏 DPI**：进程改为 Per-Monitor V2 感知（`app.manifest`），窗口移到缩放比例不同的
+  显示器时按该屏 DPI 重算字号与布局，不再由 Windows 位图拉伸（发虚）。
+  主窗口、总览、设置、更新对话框都处理 `WM_DPICHANGED`；字体改为像素单位，
+  每块屏各用一档字号。
+- **跨屏记忆尺寸**：主窗口保存尺寸时一并记录所在显示器的 DPI，换到不同 DPI 的屏幕
+  启动时按比例换算，观感尺寸保持一致。
+
 ## [0.5.1] - 2026-10-21
 
 ### Fixed

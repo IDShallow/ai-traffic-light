@@ -20,11 +20,18 @@ namespace ClaudeTrafficLight.Setup
         private Rectangle _btnClose;
         private bool _hotClose;
         private bool _busy;
+        private float _scale = 1f;
+        private UiFonts _fonts = Ui.Fonts(1f);
 
-        private int HeaderH { get { return Ui.Px(48); } }
+        private int Px(int v) { return (int)Math.Round(v * _scale); }
+
+        private int HeaderH { get { return Px(48); } }
 
         public SetupForm()
         {
+            _scale = Ui.Scale;
+            _fonts = Ui.Fonts(_scale);
+
             _existingDir = Installer.ExistingDir();
             _upgrade = !string.IsNullOrEmpty(_existingDir);
 
@@ -34,13 +41,13 @@ namespace ClaudeTrafficLight.Setup
             ForeColor = Ui.Text;
             StartPosition = FormStartPosition.CenterScreen;
             DoubleBuffered = true;
-            ClientSize = new Size(Ui.Px(500), Ui.Px(470));
+            ClientSize = new Size(Px(500), Px(470));
             MinimumSize = Size;
             MaximumSize = Size;
             Icon = SetupIcon.Load();
 
-            int x = Ui.Px(28);
-            int y = HeaderH + Ui.Px(14);
+            int x = Px(28);
+            int y = HeaderH + Px(14);
 
             Label intro = new Label();
             intro.Text = _upgrade
@@ -48,31 +55,31 @@ namespace ClaudeTrafficLight.Setup
                   "。\n本次是覆盖更新：安装位置保持不变，设置与监控数据都会保留。"
                 : "选择安装位置。安装到当前用户目录不需要管理员权限。";
             intro.AutoSize = false;
-            intro.Font = Ui.F85;
+            intro.Font = _fonts.F85;
             intro.ForeColor = Ui.TextDim;
             intro.BackColor = Ui.Bg;
             intro.Location = new Point(x, y);
-            intro.Size = new Size(ClientSize.Width - x * 2, Ui.Px(44));
+            intro.Size = new Size(ClientSize.Width - x * 2, Px(44));
             Controls.Add(intro);
-            y += Ui.Px(50);
+            y += Px(50);
 
             Label pathLabel = new Label();
             pathLabel.Text = "安装位置";
             pathLabel.AutoSize = true;
-            pathLabel.Font = Ui.F85;
+            pathLabel.Font = _fonts.F85;
             pathLabel.ForeColor = Ui.Text;
             pathLabel.BackColor = Ui.Bg;
             pathLabel.Location = new Point(x, y);
             Controls.Add(pathLabel);
-            y += Ui.Px(24);
+            y += Px(24);
 
             _path = new TextBox();
-            _path.Font = Ui.F8;
+            _path.Font = _fonts.F8;
             _path.BackColor = Ui.Bg2;
             _path.ForeColor = Ui.Text;
             _path.BorderStyle = BorderStyle.FixedSingle;
             _path.Location = new Point(x, y);
-            _path.Size = new Size(ClientSize.Width - x * 2 - Ui.Px(96), Ui.Px(26));
+            _path.Size = new Size(ClientSize.Width - x * 2 - Px(96), Px(26));
             _path.Text = _upgrade ? _existingDir : Installer.DefaultDir();
             _path.ReadOnly = _upgrade;
             _path.SelectionStart = 0;
@@ -81,8 +88,8 @@ namespace ClaudeTrafficLight.Setup
 
             _browse = new Button();
             _browse.Text = "浏览…";
-            _browse.Size = new Size(Ui.Px(86), Ui.Px(26));
-            _browse.Location = new Point(ClientSize.Width - x - _browse.Width, y - Ui.Px(1));
+            _browse.Size = new Size(Px(86), Px(26));
+            _browse.Location = new Point(ClientSize.Width - x - _browse.Width, y - Px(1));
             _browse.FlatStyle = FlatStyle.Flat;
             _browse.FlatAppearance.BorderColor = Ui.Line;
             _browse.BackColor = Ui.Bg3;
@@ -90,42 +97,42 @@ namespace ClaudeTrafficLight.Setup
             _browse.Enabled = !_upgrade;
             _browse.Click += delegate { Browse(); };
             Controls.Add(_browse);
-            y += Ui.Px(34);
+            y += Px(34);
 
             Label hint = new Label();
             hint.Text = "建议装在当前用户目录（不需要管理员权限）；装到 Program Files 需要管理员权限。";
             hint.AutoSize = false;
-            hint.Font = Ui.F75;
+            hint.Font = _fonts.F75;
             hint.ForeColor = Ui.TextFaint;
             hint.BackColor = Ui.Bg;
             hint.Location = new Point(x, y);
-            hint.Size = new Size(ClientSize.Width - x * 2, Ui.Px(30));
+            hint.Size = new Size(ClientSize.Width - x * 2, Px(30));
             Controls.Add(hint);
-            y += Ui.Px(40);
+            y += Px(40);
 
             _desktop = AddCheck("创建桌面快捷方式", x, y,
                 _upgrade ? Installer.DesktopShortcutExists() : true);
-            y += Ui.Px(30);
+            y += Px(30);
             _autoStart = AddCheck("开机自启（最小化到托盘）", x, y,
                 _upgrade ? Installer.AutoStartEnabled() : true);
-            y += Ui.Px(30);
+            y += Px(30);
             _runAfter = AddCheck("安装完成后运行", x, y, true);
 
-            y += Ui.Px(40);
+            y += Px(40);
             _status = new Label();
             _status.AutoSize = false;
-            _status.Font = Ui.F8;
+            _status.Font = _fonts.F8;
             _status.ForeColor = Ui.TextDim;
             _status.BackColor = Ui.Bg;
             _status.Location = new Point(x, y);
-            _status.Size = new Size(ClientSize.Width - x * 2, Ui.Px(22));
+            _status.Size = new Size(ClientSize.Width - x * 2, Px(22));
             Controls.Add(_status);
 
             _install = new Button();
             _install.Text = _upgrade ? "覆盖更新" : "安装";
-            _install.Size = new Size(Ui.Px(110), Ui.Px(32));
+            _install.Size = new Size(Px(110), Px(32));
             _install.Location = new Point(ClientSize.Width - x - _install.Width,
-                                          ClientSize.Height - Ui.Px(54));
+                                          ClientSize.Height - Px(54));
             _install.FlatStyle = FlatStyle.Flat;
             _install.FlatAppearance.BorderColor = Ui.Line;
             _install.BackColor = Color.FromArgb(255, 45, 90, 160);
@@ -135,9 +142,9 @@ namespace ClaudeTrafficLight.Setup
 
             Button cancel = new Button();
             cancel.Text = "取消";
-            cancel.Size = new Size(Ui.Px(86), Ui.Px(32));
-            cancel.Location = new Point(ClientSize.Width - x - _install.Width - Ui.Px(12) - cancel.Width,
-                                        ClientSize.Height - Ui.Px(54));
+            cancel.Size = new Size(Px(86), Px(32));
+            cancel.Location = new Point(ClientSize.Width - x - _install.Width - Px(12) - cancel.Width,
+                                        ClientSize.Height - Px(54));
             cancel.FlatStyle = FlatStyle.Flat;
             cancel.FlatAppearance.BorderColor = Ui.Line;
             cancel.BackColor = Ui.Bg3;
@@ -151,7 +158,7 @@ namespace ClaudeTrafficLight.Setup
             CheckBox cb = new CheckBox();
             cb.Text = text;
             cb.AutoSize = true;
-            cb.Font = Ui.F85;
+            cb.Font = _fonts.F85;
             cb.ForeColor = Ui.Text;
             cb.BackColor = Ui.Bg;
             cb.FlatStyle = FlatStyle.Flat;
@@ -245,10 +252,10 @@ namespace ClaudeTrafficLight.Setup
         protected override void OnResize(EventArgs e)
         {
             base.OnResize(e);
-            _btnClose = new Rectangle(Width - Ui.Px(34), Ui.Px(8), Ui.Px(24), Ui.Px(24));
+            _btnClose = new Rectangle(Width - Px(34), Px(8), Px(24), Px(24));
             try
             {
-                using (GraphicsPath p = Ui.RoundPath(new Rectangle(0, 0, Width, Height), Ui.Px(12)))
+                using (GraphicsPath p = Ui.RoundPath(new Rectangle(0, 0, Width, Height), Px(12)))
                     Region = new Region(p);
             }
             catch { }
@@ -261,23 +268,23 @@ namespace ClaudeTrafficLight.Setup
             using (SolidBrush b = new SolidBrush(Ui.Bg))
                 g.FillRectangle(b, ClientRectangle);
 
-            TextRenderer.DrawText(g, AppInfo.ProductName, Ui.F12B,
-                new Rectangle(Ui.Px(28), Ui.Px(12), Width - Ui.Px(90), Ui.Px(24)),
+            TextRenderer.DrawText(g, AppInfo.ProductName, _fonts.F12B,
+                new Rectangle(Px(28), Px(12), Width - Px(90), Px(24)),
                 Ui.Text, TextFormatFlags.NoPadding | TextFormatFlags.SingleLine);
 
-            TextRenderer.DrawText(g, "v" + AppInfo.Version, Ui.F8,
-                new Rectangle(Ui.Px(28) + TextRenderer.MeasureText(AppInfo.ProductName, Ui.F12B).Width + Ui.Px(10),
-                              Ui.Px(17), Ui.Px(80), Ui.Px(18)),
+            TextRenderer.DrawText(g, "v" + AppInfo.Version, _fonts.F8,
+                new Rectangle(Px(28) + TextRenderer.MeasureText(AppInfo.ProductName, _fonts.F12B).Width + Px(10),
+                              Px(17), Px(80), Px(18)),
                 Ui.TextFaint, TextFormatFlags.NoPadding | TextFormatFlags.SingleLine);
 
-            TextRenderer.DrawText(g, "×", Ui.F10B, _btnClose,
+            TextRenderer.DrawText(g, "×", _fonts.F10B, _btnClose,
                 _hotClose ? Ui.Text : Ui.TextFaint,
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
 
             using (Pen p = new Pen(Color.FromArgb(255, 40, 45, 55), 1f))
                 g.DrawLine(p, 0, HeaderH - 1, Width, HeaderH - 1);
 
-            using (GraphicsPath path = Ui.RoundPath(new Rectangle(0, 0, Width - 1, Height - 1), Ui.Px(12)))
+            using (GraphicsPath path = Ui.RoundPath(new Rectangle(0, 0, Width - 1, Height - 1), Px(12)))
             using (Pen p = new Pen(Color.FromArgb(255, 46, 51, 62), 1f))
                 g.DrawPath(p, path);
         }

@@ -18,12 +18,70 @@ namespace ClaudeTrafficLight
         private Button _updateBtn;
         private Rectangle _btnClose;
         private bool _hotClose;
+        private float _scale = 1f;
+        private UiFonts _fonts = Ui.Fonts(1f);
 
-        private int HeaderH { get { return Ui.Px(46); } }
+        private int Px(int v) { return (int)Math.Round(v * _scale); }
+
+        private int HeaderH { get { return Px(46); } }
+
+        private void SetScale(float scale)
+        {
+            if (scale < 0.5f) scale = 0.5f;
+            _scale = scale;
+            _fonts = Ui.Fonts(scale);
+        }
+
+        /// <summary>DPI 变了：位置、字号和标准控件都要按新比例重建。</summary>
+        private void Rebuild()
+        {
+            SuspendLayout();
+            Control[] old = new Control[Controls.Count];
+            Controls.CopyTo(old, 0);
+            Controls.Clear();
+            for (int i = 0; i < old.Length; i++)
+            {
+                try { old[i].Dispose(); } catch { }
+            }
+            BuildUi();
+            ResumeLayout(true);
+            Invalidate(true);
+        }
+
+        protected override void OnLoad(EventArgs e)
+        {
+            base.OnLoad(e);
+            float sc = DeviceDpi / 96f;
+            if (Math.Abs(sc - _scale) > 0.01f)
+            {
+                SetScale(sc);
+                Rebuild();
+            }
+        }
+
+        protected override void WndProc(ref Message m)
+        {
+            if (m.Msg == Win32.WM_DPICHANGED)
+            {
+                int dpi = Win32.DpiOfWParam(m.WParam);
+                Win32.RECT r = Win32.RectOfLParam(m.LParam);
+
+                SetScale(dpi / 96f);
+                Rebuild();
+                Bounds = new Rectangle(r.Left, r.Top, r.Right - r.Left, r.Bottom - r.Top);
+                Log.Write("settings dpi -> " + dpi + " size=" + Width + "x" + Height);
+
+                m.Result = IntPtr.Zero;
+                return;
+            }
+            base.WndProc(ref m);
+        }
 
         public SettingsForm(AppSettings settings)
         {
             _settings = settings;
+            _scale = Ui.Scale;
+            _fonts = Ui.Fonts(_scale);
 
             Text = "设置";
             FormBorderStyle = FormBorderStyle.None;
@@ -32,50 +90,59 @@ namespace ClaudeTrafficLight
             StartPosition = FormStartPosition.CenterParent;
             ShowInTaskbar = false;
             DoubleBuffered = true;
-            TopMost = settings.TopMost;
-            ClientSize = new Size(Ui.Px(470), Ui.Px(700));
+            TopMost = _settings.TopMost;
+
+            BuildUi();
+        }
+
+        private void BuildUi()
+        {
+            // 重建时先把旧的尺寸限制放开，否则新尺寸会被旧的 MaximumSize 夹回去
+            MinimumSize = Size.Empty;
+            MaximumSize = Size.Empty;
+            ClientSize = new Size(Px(470), Px(700));
             MinimumSize = Size;
             MaximumSize = Size;
 
-            int x = Ui.Px(24);
-            int y = HeaderH + Ui.Px(12);
-            int step = Ui.Px(30);
+            int x = Px(24);
+            int y = HeaderH + Px(12);
+            int step = Px(30);
 
-            _checks[0] = AddCheck("窗口总在最前", x, y, settings.TopMost, delegate { settings.TopMost = _checks[0].Checked; Save(); });
+            _checks[0] = AddCheck("窗口总在最前", x, y, _settings.TopMost, delegate { _settings.TopMost = _checks[0].Checked; Save(); });
             y += step;
-            _checks[1] = AddCheck("需要你回答时提示", x, y, settings.NotifyNeeds, delegate { settings.NotifyNeeds = _checks[1].Checked; Save(); });
+            _checks[1] = AddCheck("需要你回答时提示", x, y, _settings.NotifyNeeds, delegate { _settings.NotifyNeeds = _checks[1].Checked; Save(); });
             y += step;
-            _checks[2] = AddCheck("完成时提示", x, y, settings.NotifyDone, delegate { settings.NotifyDone = _checks[2].Checked; Save(); });
+            _checks[2] = AddCheck("完成时提示", x, y, _settings.NotifyDone, delegate { _settings.NotifyDone = _checks[2].Checked; Save(); });
             y += step;
-            _checks[3] = AddCheck("出错时提示", x, y, settings.NotifyError, delegate { settings.NotifyError = _checks[3].Checked; Save(); });
+            _checks[3] = AddCheck("出错时提示", x, y, _settings.NotifyError, delegate { _settings.NotifyError = _checks[3].Checked; Save(); });
             y += step;
-            _checks[4] = AddCheck("提示音", x, y, settings.Sound, delegate { settings.Sound = _checks[4].Checked; Save(); });
+            _checks[4] = AddCheck("提示音", x, y, _settings.Sound, delegate { _settings.Sound = _checks[4].Checked; Save(); });
             y += step;
-            _checks[5] = AddCheck("开机自启", x, y, settings.AutoStart, delegate { settings.AutoStart = _checks[5].Checked; Save(); });
+            _checks[5] = AddCheck("开机自启", x, y, _settings.AutoStart, delegate { _settings.AutoStart = _checks[5].Checked; Save(); });
             y += step;
-            _checks[6] = AddCheck("显示已结束的会话（最近 30 分钟）", x, y, settings.ShowOffline, delegate { settings.ShowOffline = _checks[6].Checked; Save(); });
+            _checks[6] = AddCheck("显示已结束的会话（最近 30 分钟）", x, y, _settings.ShowOffline, delegate { _settings.ShowOffline = _checks[6].Checked; Save(); });
             y += step;
-            _checks[7] = AddCheck("按状态排序（需要你的排最前）", x, y, settings.SortByState, delegate { settings.SortByState = _checks[7].Checked; Save(); });
+            _checks[7] = AddCheck("按状态排序（需要你的排最前）", x, y, _settings.SortByState, delegate { _settings.SortByState = _checks[7].Checked; Save(); });
             y += step;
-            _checks[8] = AddCheck("启动时最小化到托盘", x, y, settings.StartMinimized, delegate { settings.StartMinimized = _checks[8].Checked; Save(); });
+            _checks[8] = AddCheck("启动时最小化到托盘", x, y, _settings.StartMinimized, delegate { _settings.StartMinimized = _checks[8].Checked; Save(); });
             y += step;
-            _checks[9] = AddCheck("隐私模式（只显示状态，不显示对话名 / 内容）", x, y, settings.PrivacyMode, delegate { settings.PrivacyMode = _checks[9].Checked; Save(); });
+            _checks[9] = AddCheck("隐私模式（只显示状态，不显示对话名 / 内容）", x, y, _settings.PrivacyMode, delegate { _settings.PrivacyMode = _checks[9].Checked; Save(); });
 
             // ---- 版本 / 检查更新 ----
-            y += Ui.Px(38);
+            y += Px(38);
             Label ver = new Label();
             ver.Text = "当前版本 v" + AppInfo.Version;
             ver.AutoSize = true;
-            ver.Font = Ui.F85;
+            ver.Font = _fonts.F85;
             ver.ForeColor = Ui.TextDim;
             ver.BackColor = Ui.Bg;
-            ver.Location = new Point(x, y + Ui.Px(5));
+            ver.Location = new Point(x, y + Px(5));
             Controls.Add(ver);
 
             _updateBtn = new Button();
             _updateBtn.Text = "检查更新";
-            _updateBtn.Size = new Size(Ui.Px(96), Ui.Px(28));
-            _updateBtn.Location = new Point(ClientSize.Width - Ui.Px(24) - _updateBtn.Width, y);
+            _updateBtn.Size = new Size(Px(96), Px(28));
+            _updateBtn.Location = new Point(ClientSize.Width - Px(24) - _updateBtn.Width, y);
             _updateBtn.FlatStyle = FlatStyle.Flat;
             _updateBtn.FlatAppearance.BorderColor = Ui.Line;
             _updateBtn.BackColor = Ui.Bg3;
@@ -86,35 +153,35 @@ namespace ClaudeTrafficLight
             _updateStatus = new Label();
             _updateStatus.Text = "";
             _updateStatus.AutoSize = false;
-            _updateStatus.Font = Ui.F75;
+            _updateStatus.Font = _fonts.F75;
             _updateStatus.ForeColor = Ui.TextFaint;
             _updateStatus.BackColor = Ui.Bg;
-            _updateStatus.Location = new Point(x, y + Ui.Px(28));
-            _updateStatus.Size = new Size(ClientSize.Width - Ui.Px(48), Ui.Px(18));
+            _updateStatus.Location = new Point(x, y + Px(28));
+            _updateStatus.Size = new Size(ClientSize.Width - Px(48), Px(18));
             Controls.Add(_updateStatus);
 
             // ---- 钩子 ----
-            y += Ui.Px(56);
+            y += Px(56);
             Label hookTitle = new Label();
             hookTitle.Text = "精确状态（Claude 钩子）";
             hookTitle.ForeColor = Ui.Text;
             hookTitle.BackColor = Ui.Bg;
-            hookTitle.Font = Ui.F95B;
+            hookTitle.Font = _fonts.F95B;
             hookTitle.AutoSize = true;
             hookTitle.Location = new Point(x, y);
             Controls.Add(hookTitle);
-            y += Ui.Px(26);
+            y += Px(26);
 
             _hookStatus = new Label();
             _hookStatus.AutoSize = true;
-            _hookStatus.Font = Ui.F8;
+            _hookStatus.Font = _fonts.F8;
             _hookStatus.Location = new Point(x, y);
             Controls.Add(_hookStatus);
 
             _hookBtn = new Button();
             _hookBtn.Text = "安装钩子";
-            _hookBtn.Size = new Size(Ui.Px(96), Ui.Px(28));
-            _hookBtn.Location = new Point(ClientSize.Width - Ui.Px(24) - _hookBtn.Width, y - Ui.Px(6));
+            _hookBtn.Size = new Size(Px(96), Px(28));
+            _hookBtn.Location = new Point(ClientSize.Width - Px(24) - _hookBtn.Width, y - Px(6));
             _hookBtn.FlatStyle = FlatStyle.Flat;
             _hookBtn.FlatAppearance.BorderColor = Ui.Line;
             _hookBtn.BackColor = Ui.Bg3;
@@ -122,39 +189,39 @@ namespace ClaudeTrafficLight
             _hookBtn.Click += delegate { ToggleHooks(); };
             Controls.Add(_hookBtn);
 
-            y += Ui.Px(30);
+            y += Px(30);
             Label hint = new Label();
             hint.Text = "钩子写进 ~/.claude/settings.json（先备份、只增不改），\n用来精确捕捉“需要你回答 / 刚做完 / 出错”的时刻。\n不装也能用：靠会话注册表判断忙/闲，只是精度稍差。\n已开着的会话要重开一次才会带上钩子。";
             hint.AutoSize = true;
-            hint.Font = Ui.F75;
+            hint.Font = _fonts.F75;
             hint.ForeColor = Ui.TextFaint;
             hint.BackColor = Ui.Bg;
             hint.Location = new Point(x, y);
             Controls.Add(hint);
 
             // ---- 监控来源 ----
-            y += Ui.Px(84);
+            y += Px(84);
             Label sources = new Label();
             sources.Text = "监控来源";
             sources.AutoSize = true;
-            sources.Font = Ui.F75;
+            sources.Font = _fonts.F75;
             sources.ForeColor = Ui.TextFaint;
             sources.BackColor = Ui.Bg;
             sources.Location = new Point(x, y);
             Controls.Add(sources);
-            y += Ui.Px(24);
+            y += Px(24);
 
-            _checks[10] = AddCheck("Claude Code", x, y, settings.MonitorClaude,
-                delegate { settings.MonitorClaude = _checks[10].Checked; Save(); });
-            _checks[11] = AddCheck("Codex", x + Ui.Px(106), y, settings.MonitorCodex,
-                delegate { settings.MonitorCodex = _checks[11].Checked; Save(); });
-            _checks[12] = AddCheck("DeepSeek Harness", x + Ui.Px(186), y, settings.MonitorDsh,
-                delegate { settings.MonitorDsh = _checks[12].Checked; Save(); });
+            _checks[10] = AddCheck("Claude Code", x, y, _settings.MonitorClaude,
+                delegate { _settings.MonitorClaude = _checks[10].Checked; Save(); });
+            _checks[11] = AddCheck("Codex", x + Px(106), y, _settings.MonitorCodex,
+                delegate { _settings.MonitorCodex = _checks[11].Checked; Save(); });
+            _checks[12] = AddCheck("DeepSeek Harness", x + Px(186), y, _settings.MonitorDsh,
+                delegate { _settings.MonitorDsh = _checks[12].Checked; Save(); });
 
             Button openDir = new Button();
             openDir.Text = "打开配置目录";
-            openDir.Size = new Size(Ui.Px(110), Ui.Px(30));
-            openDir.Location = new Point(x, ClientSize.Height - Ui.Px(50));
+            openDir.Size = new Size(Px(110), Px(30));
+            openDir.Location = new Point(x, ClientSize.Height - Px(50));
             openDir.FlatStyle = FlatStyle.Flat;
             openDir.FlatAppearance.BorderColor = Ui.Line;
             openDir.BackColor = Ui.Bg3;
@@ -172,8 +239,8 @@ namespace ClaudeTrafficLight
 
             Button close = new Button();
             close.Text = "关闭";
-            close.Size = new Size(Ui.Px(86), Ui.Px(30));
-            close.Location = new Point(ClientSize.Width - Ui.Px(24) - close.Width, ClientSize.Height - Ui.Px(50));
+            close.Size = new Size(Px(86), Px(30));
+            close.Location = new Point(ClientSize.Width - Px(24) - close.Width, ClientSize.Height - Px(50));
             close.FlatStyle = FlatStyle.Flat;
             close.FlatAppearance.BorderColor = Ui.Line;
             close.BackColor = Ui.Bg3;
@@ -189,7 +256,7 @@ namespace ClaudeTrafficLight
             CheckBox cb = new CheckBox();
             cb.Text = text;
             cb.AutoSize = true;
-            cb.Font = Ui.F85;
+            cb.Font = _fonts.F85;
             cb.ForeColor = Ui.Text;
             cb.BackColor = Ui.Bg;
             cb.FlatStyle = FlatStyle.Flat;
@@ -320,10 +387,10 @@ namespace ClaudeTrafficLight
         protected override void OnResize(EventArgs e)
         {
             base.OnResize(e);
-            _btnClose = new Rectangle(Width - Ui.Px(34), Ui.Px(8), Ui.Px(24), Ui.Px(24));
+            _btnClose = new Rectangle(Width - Px(34), Px(8), Px(24), Px(24));
             try
             {
-                using (GraphicsPath p = Ui.RoundPath(new Rectangle(0, 0, Width, Height), Ui.Px(10)))
+                using (GraphicsPath p = Ui.RoundPath(new Rectangle(0, 0, Width, Height), Px(10)))
                     Region = new Region(p);
             }
             catch { }
@@ -336,18 +403,18 @@ namespace ClaudeTrafficLight
             using (SolidBrush b = new SolidBrush(Ui.Bg))
                 g.FillRectangle(b, ClientRectangle);
 
-            TextRenderer.DrawText(g, "设置", Ui.F12B,
-                new Rectangle(Ui.Px(24), Ui.Px(12), Width - Ui.Px(80), Ui.Px(24)),
+            TextRenderer.DrawText(g, "设置", _fonts.F12B,
+                new Rectangle(Px(24), Px(12), Width - Px(80), Px(24)),
                 Ui.Text, TextFormatFlags.NoPadding | TextFormatFlags.SingleLine);
 
-            TextRenderer.DrawText(g, "×", Ui.F10B, _btnClose,
+            TextRenderer.DrawText(g, "×", _fonts.F10B, _btnClose,
                 _hotClose ? Ui.Text : Ui.TextFaint,
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
 
             using (Pen p = new Pen(Color.FromArgb(255, 40, 45, 55), 1f))
                 g.DrawLine(p, 0, HeaderH - 1, Width, HeaderH - 1);
 
-            using (GraphicsPath path = Ui.RoundPath(new Rectangle(0, 0, Width - 1, Height - 1), Ui.Px(10)))
+            using (GraphicsPath path = Ui.RoundPath(new Rectangle(0, 0, Width - 1, Height - 1), Px(10)))
             using (Pen p = new Pen(Color.FromArgb(255, 46, 51, 62), 1f))
                 g.DrawPath(p, path);
         }

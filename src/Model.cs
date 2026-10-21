@@ -113,6 +113,8 @@ namespace ClaudeTrafficLight
     {
         public int[] MainPos;
         public int[] MainSize;
+        /// <summary>保存 MainSize 时窗口所在显示器的 DPI；跨屏恢复时按比例换算尺寸。</summary>
+        public int MainDpi = 96;
         public int[] OverviewPos;
         public bool TopMost = true;
         public bool OverviewVisible;
@@ -148,6 +150,7 @@ namespace ClaudeTrafficLight
 
                 s.MainPos = Ints(d, "mainPos");
                 s.MainSize = Ints(d, "mainSize");
+                s.MainDpi = (int)Json.Long(d, "mainDpi", s.MainDpi);
                 s.OverviewPos = Ints(d, "overviewPos");
                 s.TopMost = Json.Bool(d, "topMost", s.TopMost);
                 s.OverviewVisible = Json.Bool(d, "overviewVisible", s.OverviewVisible);
@@ -205,6 +208,7 @@ namespace ClaudeTrafficLight
                     new System.Collections.Generic.Dictionary<string, object>();
                 d["mainPos"] = MainPos;
                 d["mainSize"] = MainSize;
+                d["mainDpi"] = MainDpi;
                 d["overviewPos"] = OverviewPos;
                 d["topMost"] = TopMost;
                 d["overviewVisible"] = OverviewVisible;

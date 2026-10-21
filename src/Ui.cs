@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Text;
@@ -6,11 +7,61 @@ using System.Windows.Forms;
 
 namespace ClaudeTrafficLight
 {
+    /// <summary>
+    /// 一套按 DPI 缩放过的字体。
+    /// 用像素单位而不是磅：TextRenderer 走 GDI，磅值是按系统 DPI 换算的，
+    /// 跨不同缩放的显示器不会自己变；像素值才是确定的。
+    /// </summary>
+    internal sealed class UiFonts
+    {
+        public readonly Font F12B, F10B, F95B, F85, F8, F8B, F75;
+
+        public UiFonts(float scale)
+        {
+            F12B = Mk(12f, FontStyle.Bold, scale);
+            F10B = Mk(10f, FontStyle.Bold, scale);
+            F95B = Mk(9.5f, FontStyle.Bold, scale);
+            F85 = Mk(8.5f, FontStyle.Regular, scale);
+            F8 = Mk(8f, FontStyle.Regular, scale);
+            F8B = Mk(8f, FontStyle.Bold, scale);
+            F75 = Mk(7.5f, FontStyle.Regular, scale);
+        }
+
+        private static Font Mk(float pt, FontStyle style, float scale)
+        {
+            float px = pt * 96f / 72f * scale;
+            if (px < 1f) px = 1f;
+            try { return new Font("Microsoft YaHei UI", px, style, GraphicsUnit.Pixel); }
+            catch
+            {
+                try { return new Font("Microsoft YaHei", px, style, GraphicsUnit.Pixel); }
+                catch { return new Font(FontFamily.GenericSansSerif, px, style, GraphicsUnit.Pixel); }
+            }
+        }
+    }
+
     internal static class Ui
     {
+        /// <summary>启动时的兜底缩放（屏幕/系统 DPI）；各窗口按自己所在显示器的 DPI 再覆盖。</summary>
         public static float Scale = 1f;
 
         public static int Px(int v) { return (int)Math.Round(v * Scale); }
+
+        private static readonly Dictionary<int, UiFonts> _fontCache = new Dictionary<int, UiFonts>();
+
+        /// <summary>按缩放取一套字号，同一档位复用（窗口跨屏时只会有几档）。</summary>
+        public static UiFonts Fonts(float scale)
+        {
+            int key = (int)Math.Round(scale * 100f);
+            if (key < 50) key = 50;
+            UiFonts f;
+            if (!_fontCache.TryGetValue(key, out f))
+            {
+                f = new UiFonts(key / 100f);
+                _fontCache[key] = f;
+            }
+            return f;
+        }
 
         // 配色（深色）
         public static readonly Color Bg = Color.FromArgb(17, 19, 24);
@@ -27,21 +78,14 @@ namespace ClaudeTrafficLight
         public static readonly Color Magenta = Color.FromArgb(217, 70, 239);
         public static readonly Color Gray = Color.FromArgb(110, 117, 130);
 
-        private static Font _f12b, _f10b, _f95b, _f85, _f8, _f75, _f8b;
-
-        public static Font F12B { get { if (_f12b == null) _f12b = Mk(12f, FontStyle.Bold); return _f12b; } }
-        public static Font F10B { get { if (_f10b == null) _f10b = Mk(10f, FontStyle.Bold); return _f10b; } }
-        public static Font F95B { get { if (_f95b == null) _f95b = Mk(9.5f, FontStyle.Bold); return _f95b; } }
-        public static Font F85 { get { if (_f85 == null) _f85 = Mk(8.5f, FontStyle.Regular); return _f85; } }
-        public static Font F8 { get { if (_f8 == null) _f8 = Mk(8f, FontStyle.Regular); return _f8; } }
-        public static Font F8B { get { if (_f8b == null) _f8b = Mk(8f, FontStyle.Bold); return _f8b; } }
-        public static Font F75 { get { if (_f75 == null) _f75 = Mk(7.5f, FontStyle.Regular); return _f75; } }
-
-        private static Font Mk(float size, FontStyle style)
-        {
-            try { return new Font("Microsoft YaHei UI", size, style, GraphicsUnit.Point); }
-            catch { return new Font("Microsoft YaHei", size, style, GraphicsUnit.Point); }
-        }
+        // 兼容旧调用：按全局 Scale 取字体；窗口内部用各自的 _fonts
+        public static Font F12B { get { return Fonts(Scale).F12B; } }
+        public static Font F10B { get { return Fonts(Scale).F10B; } }
+        public static Font F95B { get { return Fonts(Scale).F95B; } }
+        public static Font F85 { get { return Fonts(Scale).F85; } }
+        public static Font F8 { get { return Fonts(Scale).F8; } }
+        public static Font F8B { get { return Fonts(Scale).F8B; } }
+        public static Font F75 { get { return Fonts(Scale).F75; } }
 
         public static Color StateColor(SessState s)
         {
