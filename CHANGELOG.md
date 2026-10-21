@@ -3,6 +3,19 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [0.4.2] - 2026-10-21
+
+### Fixed
+
+- **Codex 活跃会话同步**：新版 Codex 桌面端改用 `state_*.sqlite` / `thread_history_*.sqlite`
+  保存实时状态，`rollout-*.jsonl` 不再追加。现在直接读 SQLite 会话库补全会话、标题与
+  工作/完成状态，rollout 作为兼容回退；正在对话的会话不会再漏显示。
+- **Codex 请求输入提示**：对话中调用 `request_user_input[_async]` 时立即进入
+  「等待你回答」并弹出问题内容；这一轮结束（`task_complete`）或用户回答后恢复，
+  不会长期停在等待状态。同步版调用会一直等到拿到输出。
+- 有 `rollout` 的会话仍以 rollout 的状态为准（会话库缺历史表时不会被误判成已完成）；
+  SQLite 查询对 thread id 做转义；`updated_at_ms` 缺失时回退到秒级 `updated_at`。
+
 ## [0.4.1] - 2026-10-21
 
 ### Fixed
