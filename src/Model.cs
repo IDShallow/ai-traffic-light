@@ -41,6 +41,9 @@ namespace ClaudeTrafficLight
         public string LastTool = "";
         public string Model = "";
         public string ErrorText = "";
+        public string PendingQuestion = "";
+        public string PendingHeader = "";
+        public string[] PendingOptions = new string[0];
         public int TodoDone;
         public int TodoTotal;
         public DateTime LastActivity = DateTime.MinValue;

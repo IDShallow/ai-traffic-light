@@ -80,6 +80,7 @@ namespace ClaudeTrafficLight
             _list.SelectionChanged += OnSelectionChanged;
             _list.JumpRequested += OnJumpRequested;
             _list.ActionRequested += OnActionRequested;
+            _list.QuickReplyRequested += OnQuickReplyRequested;
             Controls.Add(_list);
 
             _tray = new NotifyIcon();
@@ -687,6 +688,53 @@ namespace ClaudeTrafficLight
             {
                 return false;
             }
+        }
+
+        private void OnQuickReplyRequested(SessionInfo s, string option)
+        {
+            if (s == null || string.IsNullOrEmpty(option)) return;
+
+            // Claude Code（VSCode）：聚焦会话 + 用扩展 deep link 把选项预填进输入框。
+            // 扩展的 initialPrompt 只调用 setInputText，不会自动发送 —— 由用户按 Enter。
+            if (string.Equals(s.Provider, "claude", StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(s.Entrypoint, "claude-vscode", StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrEmpty(s.SessionId))
+            {
+                try
+                {
+                    IntPtr hwnd = Win32.FindOwnerWindow(s.Pid);
+                    if (hwnd != IntPtr.Zero)
+                    {
+                        Win32.ForceForeground(hwnd);
+                        if (!string.IsNullOrEmpty(s.Title)) TabFocus.SelectByTitle(hwnd, s.Title);
+                    }
+
+                    string uri = "vscode://anthropic.claude-code/open?session=" +
+                                 Uri.EscapeDataString(s.SessionId) +
+                                 "&prompt=" + Uri.EscapeDataString(option);
+                    Process.Start(new ProcessStartInfo(uri) { UseShellExecute = true });
+                    Log.Write("quick reply prefill " + s.SessionId + " :: " + option);
+                    ShowBalloon("已填入输入框", "到会话里按 Enter 发送：" + Ui.Shorten(option, 100));
+                    return;
+                }
+                catch { }
+            }
+
+            // 其它来源：复制选项并聚焦会话
+            try
+            {
+                Clipboard.SetText(option);
+                Log.Write("quick reply copied " + s.SessionId + " :: " + option);
+                ShowBalloon("已复制选项", "已复制到剪贴板，粘贴后发送：" + Ui.Shorten(option, 100));
+            }
+            catch { }
+            OnJumpRequested(s);
+        }
+
+        private void ShowBalloon(string title, string text)
+        {
+            try { _tray.ShowBalloonTip(2500, title, text, ToolTipIcon.None); }
+            catch { }
         }
 
         private void OnActionRequested(string action, SessionInfo s)

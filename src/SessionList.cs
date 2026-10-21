@@ -19,6 +19,11 @@ namespace ClaudeTrafficLight
         public event Action<SessionInfo> SelectionChanged;
         public event Action<SessionInfo> JumpRequested;
         public event Action<string, SessionInfo> ActionRequested;
+        public event Action<SessionInfo, string> QuickReplyRequested;
+
+        private readonly List<Rectangle> _quickRects = new List<Rectangle>();
+        private readonly List<string> _quickLabels = new List<string>();
+        private int _hotQuick = -1;
 
         /// <summary>显示名由外部提供（隐私模式下换成“会话 N”）。</summary>
         public Func<SessionInfo, string> NameProvider;
@@ -41,6 +46,19 @@ namespace ClaudeTrafficLight
         private int RowH { get { return Ui.Px(58); } }
         private int DetailH { get { return Ui.Px(208); } }
         private int Pad { get { return Ui.Px(8); } }
+
+        private int QuickH(SessionInfo s)
+        {
+            if (s == null || PrivacyMode || s.PendingOptions == null || s.PendingOptions.Length == 0)
+                return 0;
+            int n = Math.Min(s.PendingOptions.Length, 5);
+            return Ui.Px(40 + n * 30);
+        }
+
+        private int DetailHeight(SessionInfo s)
+        {
+            return DetailH + QuickH(s);
+        }
 
         public SessionList()
         {
@@ -92,7 +110,7 @@ namespace ClaudeTrafficLight
             for (int i = 0; i < _items.Count; i++)
             {
                 h += RowH;
-                if (IsSelected(_items[i])) h += DetailH;
+                if (IsSelected(_items[i])) h += DetailHeight(_items[i]);
             }
             return h + Pad;
         }
@@ -120,7 +138,7 @@ namespace ClaudeTrafficLight
             int y = Pad;
             for (int i = 0; i < _items.Count; i++)
             {
-                int h = RowH + (IsSelected(_items[i]) ? DetailH : 0);
+                int h = RowH + (IsSelected(_items[i]) ? DetailHeight(_items[i]) : 0);
                 if (IsSelected(_items[i]))
                 {
                     if (y - _scroll < 0) _scroll = y;
@@ -188,11 +206,18 @@ namespace ClaudeTrafficLight
                 if (_hits[i].Rect.Contains(e.X, e.Y)) { hot = i; break; }
             }
             int action = ActionAt(e.X, e.Y);
-            if (hot != _hot || action != _hotAction)
+            int qhot = -1;
+            for (int i = 0; i < _quickRects.Count; i++)
+            {
+                if (_quickRects[i].Contains(e.Location)) { qhot = i; break; }
+            }
+            if (hot != _hot || action != _hotAction || qhot != _hotQuick)
             {
                 _hot = hot;
                 _hotAction = action;
-                Cursor = InGrip(e.Location) ? Cursors.SizeNWSE : (action != 0 ? Cursors.Hand : Cursors.Default);
+                _hotQuick = qhot;
+                Cursor = InGrip(e.Location) ? Cursors.SizeNWSE :
+                         ((qhot >= 0 || action != 0) ? Cursors.Hand : Cursors.Default);
                 Invalidate();
             }
             else if (InGrip(e.Location) && Cursor != Cursors.SizeNWSE)
@@ -204,10 +229,11 @@ namespace ClaudeTrafficLight
         protected override void OnMouseLeave(EventArgs e)
         {
             base.OnMouseLeave(e);
-            if (_hot != -1 || _hotAction != 0)
+            if (_hot != -1 || _hotAction != 0 || _hotQuick != -1)
             {
                 _hot = -1;
                 _hotAction = 0;
+                _hotQuick = -1;
                 Cursor = Cursors.Default;
                 Invalidate();
             }
@@ -238,6 +264,18 @@ namespace ClaudeTrafficLight
 
             Focus();
 
+            // 快捷回答选项
+            for (int i = 0; i < _quickRects.Count; i++)
+            {
+                if (_quickRects[i].Contains(e.Location))
+                {
+                    SessionInfo sel = Find(_selectedId);
+                    if (sel != null && QuickReplyRequested != null)
+                        QuickReplyRequested(sel, _quickLabels[i]);
+                    return;
+                }
+            }
+
             if (e.Button == MouseButtons.Left && IsOnScrollbar(e.X))
             {
                 _draggingThumb = true;
@@ -266,6 +304,7 @@ namespace ClaudeTrafficLight
                     string id = _hits[i].Id;
                     if (string.Equals(id, _selectedId, StringComparison.OrdinalIgnoreCase)) _selectedId = "";
                     else _selectedId = id;
+                    _hotQuick = -1;
 
                     SessionInfo s = Find(_selectedId);
                     if (s != null && SelectionChanged != null) SelectionChanged(s);
@@ -381,7 +420,7 @@ namespace ClaudeTrafficLight
             {
                 SessionInfo s = _items[i];
                 bool sel = IsSelected(s);
-                int h = RowH + (sel ? DetailH : 0);
+                int h = RowH + (sel ? DetailHeight(s) : 0);
                 Rectangle rr = new Rectangle(Pad, y, Width - Pad * 2, h);
 
                 // 命中表始终包含所有行（_hot 用行下标），只是不画屏幕外的
@@ -521,7 +560,9 @@ namespace ClaudeTrafficLight
         private void DrawDetail(Graphics g, Rectangle rr, SessionInfo s, float pulse)
         {
             Rectangle det = new Rectangle(rr.X + Ui.Px(8), rr.Y + RowH - Ui.Px(6),
-                rr.Width - Ui.Px(16), DetailH - Ui.Px(10));
+                rr.Width - Ui.Px(16), DetailHeight(s) - Ui.Px(10));
+            _quickRects.Clear();
+            _quickLabels.Clear();
             Ui.FillRound(g, det, Ui.Px(10), Color.FromArgb(255, 30, 34, 42));
 
             Color c = Ui.StateColor(s.State);
@@ -602,6 +643,44 @@ namespace ClaudeTrafficLight
             DrawButton(g, _btnCopy, "复制会话 ID", _hotAction == 1);
             DrawButton(g, _btnFolder, "打开目录", _hotAction == 2);
             DrawButton(g, _btnJump, "跳到会话", _hotAction == 3);
+
+            // 待回答的 AskUserQuestion：选项按钮（点击 = 预填到输入框，回车发送）
+            if (QuickH(s) > 0)
+            {
+                int qy = det.Y + Ui.Px(196);
+                using (Pen p = new Pen(Color.FromArgb(40, 255, 255, 255), 1f))
+                    g.DrawLine(p, x, qy - Ui.Px(6), x + w, qy - Ui.Px(6));
+
+                string head = "需要你回答";
+                if (!string.IsNullOrEmpty(s.PendingHeader)) head += "：" + s.PendingHeader;
+                TextRenderer.DrawText(g, Ui.Shorten(head, 60), Ui.F75,
+                    new Rectangle(x, qy, w, Ui.Px(14)), Ui.TextFaint,
+                    TextFormatFlags.NoPadding | TextFormatFlags.SingleLine);
+
+                string question = string.IsNullOrEmpty(s.PendingQuestion) ? "请选择：" : s.PendingQuestion;
+                TextRenderer.DrawText(g, Ui.Shorten(question, 100), Ui.F85,
+                    new Rectangle(x, qy + Ui.Px(15), w, Ui.Px(18)), Ui.Text,
+                    TextFormatFlags.NoPadding | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
+
+                int optY = qy + Ui.Px(38);
+                int n = Math.Min(s.PendingOptions.Length, 5);
+                for (int i = 0; i < n; i++)
+                {
+                    Rectangle r = new Rectangle(x, optY + i * Ui.Px(30), w, Ui.Px(26));
+                    _quickRects.Add(r);
+                    _quickLabels.Add(s.PendingOptions[i]);
+
+                    bool hot = (_hotQuick == i);
+                    Ui.FillRound(g, r, Ui.Px(6),
+                        hot ? Color.FromArgb(255, 48, 54, 66) : Color.FromArgb(255, 38, 43, 52));
+                    Ui.DrawRound(g, r, Ui.Px(6),
+                        hot ? Color.FromArgb(200, Ui.ProviderColor(s.Provider)) : Ui.Line, 1f);
+                    TextRenderer.DrawText(g, (i + 1) + ". " + s.PendingOptions[i], Ui.F85,
+                        new Rectangle(r.X + Ui.Px(10), r.Y, r.Width - Ui.Px(20), r.Height), Ui.Text,
+                        TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding |
+                        TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
+                }
+            }
         }
 
         private Rectangle MakeButton(Graphics g, string text, int x, int y, int h)

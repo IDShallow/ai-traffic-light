@@ -28,6 +28,7 @@ namespace ClaudeTrafficLight
             public bool FirstPoll = true;
             public DateTime LastNotify = DateTime.MinValue;
             public string LastNotifyKind = "";
+            public DateTime LastNotifyHookAt = DateTime.MinValue;
             public DateTime DeadAt = DateTime.MinValue;
         }
 
@@ -293,6 +294,13 @@ namespace ClaudeTrafficLight
                 h = Mix(h, s.ProjectName);
                 h = Mix(h, s.WaitingFor);
                 h = Mix(h, s.ErrorText == null ? 0 : s.ErrorText.Length);
+                h = Mix(h, s.PendingQuestion);
+                h = Mix(h, s.PendingHeader);
+                h = Mix(h, s.PendingOptions == null ? 0 : s.PendingOptions.Length);
+                if (s.PendingOptions != null)
+                {
+                    for (int k = 0; k < s.PendingOptions.Length; k++) h = Mix(h, s.PendingOptions[k]);
+                }
             }
             return h;
         }
@@ -326,6 +334,9 @@ namespace ClaudeTrafficLight
             i.LastTool = r.LastTool;
             i.Model = r.Model;
             i.ErrorText = r.ErrorText;
+            i.PendingQuestion = r.PendingQuestion;
+            i.PendingHeader = r.PendingHeader;
+            i.PendingOptions = r.PendingOptions;
             i.TodoDone = r.TodoDone;
             i.TodoTotal = r.TodoTotal;
             if (r.LastEntryAt > i.LastActivity) i.LastActivity = r.LastEntryAt;
@@ -390,16 +401,22 @@ namespace ClaudeTrafficLight
                 (DateTime.UtcNow - st.Reader.ErrorAt).TotalMinutes < 3)
                 s = SessState.Error;
 
+            DateTime boundary = r.StatusAt;
+            if (hookAt != DateTime.MinValue && hookAt > boundary) boundary = hookAt;
+
+            // 待回答的 AskUserQuestion：比注册表状态 / Stop 钩子更新 ⇒ 等你回答
+            if (st.Reader != null && st.Reader.HasPendingQuestion &&
+                s != SessState.Error && s != SessState.Offline &&
+                (st.Reader.PendingAt == DateTime.MinValue || boundary == DateTime.MinValue ||
+                 st.Reader.PendingAt > boundary))
+                s = SessState.NeedsInput;
+
             // 注册表的 status 只在回合边界写；如果转录里已经有"新回合/工具在跑"的记录，
             // 且比 statusUpdatedAt（或 Stop 钩子）更晚，说明注册表是旧的 ⇒ 按工作中算。
             if (s == SessState.Done && st.Reader != null && st.Reader.PhaseWorking &&
-                st.Reader.PhaseAt != DateTime.MinValue)
-            {
-                DateTime boundary = r.StatusAt;
-                if (hookAt != DateTime.MinValue && hookAt > boundary) boundary = hookAt;
-                if (boundary == DateTime.MinValue || st.Reader.PhaseAt > boundary)
-                    s = SessState.Working;
-            }
+                st.Reader.PhaseAt != DateTime.MinValue &&
+                (boundary == DateTime.MinValue || st.Reader.PhaseAt > boundary))
+                s = SessState.Working;
 
             return s;
         }
@@ -435,9 +452,11 @@ namespace ClaudeTrafficLight
                     }
                 }
             }
-            else if (s == SessState.NeedsInput && !first)
+            else if (s == SessState.NeedsInput && !first && hook != null &&
+                     HookAt(hook) > st.LastNotifyHookAt)
             {
-                // 同一个"等待"里又来了新的通知（新的权限请求等）
+                // 同一个"等待"里又来了新的通知（新的权限请求等）；
+                // 没有新的 hook 事件就不重复轰炸（无钩子时尤其不能每 20 秒弹一次）
                 MaybeNotify(st, s, hook, now);
             }
 
@@ -543,6 +562,7 @@ namespace ClaudeTrafficLight
             if (st.LastNotifyKind == kind && (now - st.LastNotify).TotalSeconds < 20) return;
             st.LastNotifyKind = kind;
             st.LastNotify = now;
+            st.LastNotifyHookAt = HookAt(hook);
 
             MonitorEvent e = new MonitorEvent();
             e.Kind = kind;
@@ -753,6 +773,9 @@ namespace ClaudeTrafficLight
             b.LastTool = a.LastTool;
             b.Model = a.Model;
             b.ErrorText = a.ErrorText;
+            b.PendingQuestion = a.PendingQuestion;
+            b.PendingHeader = a.PendingHeader;
+            b.PendingOptions = a.PendingOptions;
             b.TodoDone = a.TodoDone;
             b.TodoTotal = a.TodoTotal;
             b.LastActivity = a.LastActivity;

@@ -39,6 +39,67 @@ namespace ClaudeTrafficLight
         public DateTime PhaseAt = DateTime.MinValue;
         public string PhaseKind = "";
 
+        /// <summary>待回答的 AskUserQuestion（有选项时可在面板里快捷回复）。</summary>
+        public string PendingQuestion = "";
+        public string PendingHeader = "";
+        public string[] PendingOptions = new string[0];
+        public string PendingToolUseId = "";
+        public DateTime PendingAt = DateTime.MinValue;
+
+        public bool HasPendingQuestion
+        {
+            get { return PendingOptions.Length > 0 || PendingQuestion.Length > 0; }
+        }
+
+        private void ClearQuestion()
+        {
+            PendingQuestion = "";
+            PendingHeader = "";
+            PendingOptions = new string[0];
+            PendingToolUseId = "";
+            PendingAt = DateTime.MinValue;
+        }
+
+        private void ReadQuestion(Dictionary<string, object> block, DateTime ts)
+        {
+            Dictionary<string, object> input = Json.Map(block, "input");
+            if (input != null && input.ContainsKey("__unparsedToolInput"))
+            {
+                Dictionary<string, object> wrap = Json.Map(input, "__unparsedToolInput");
+                string raw = wrap != null ? Json.Str(wrap, "raw") : "";
+                if (raw.Length > 0)
+                {
+                    Dictionary<string, object> parsed = Json.ParseObject(raw);
+                    if (parsed != null) input = parsed;
+                }
+            }
+            if (input == null) return;
+
+            object[] qs = Json.List(input, "questions");
+            if (qs == null || qs.Length == 0) return;
+            Dictionary<string, object> q = qs[0] as Dictionary<string, object>;
+            if (q == null) return;
+
+            List<string> opts = new List<string>();
+            object[] oa = Json.List(q, "options");
+            if (oa != null)
+            {
+                for (int i = 0; i < oa.Length && opts.Count < 6; i++)
+                {
+                    Dictionary<string, object> o = oa[i] as Dictionary<string, object>;
+                    if (o == null) continue;
+                    string label = Json.Str(o, "label");
+                    if (label.Length > 0) opts.Add(Cap(label, 100));
+                }
+            }
+
+            PendingQuestion = Cap(Json.Str(q, "question"), 500);
+            PendingHeader = Cap(Json.Str(q, "header"), 100);
+            PendingOptions = opts.ToArray();
+            PendingToolUseId = Json.Str(block, "id");
+            PendingAt = ts;
+        }
+
         private void SetPhase(bool working, DateTime ts, string kind)
         {
             if (ts == DateTime.MinValue)
@@ -341,6 +402,7 @@ namespace ClaudeTrafficLight
                                 string name = Json.Str(b, "name");
                                 if (name.Length > 0) LastTool = name;
                                 if (name == "TodoWrite") ReadTodos(b);
+                                if (name == "AskUserQuestion") ReadQuestion(b, ts);
                             }
                         }
                     }
@@ -349,7 +411,11 @@ namespace ClaudeTrafficLight
                     // 明确的 end_turn 才算这一轮结束。
                     string stop = Json.Str(msg, "stop_reason");
                     if (hasToolUse || stop == "tool_use") SetPhase(true, ts, "tool_use");
-                    else if (stop == "end_turn") SetPhase(false, ts, "end_turn");
+                    else if (stop == "end_turn")
+                    {
+                        SetPhase(false, ts, "end_turn");
+                        ClearQuestion();
+                    }
                 }
                 else if (type == "user")
                 {
@@ -362,6 +428,7 @@ namespace ClaudeTrafficLight
                         {
                             if (s.Trim().Length > 0) LastPrompt = Cap(s, 2000);
                             SetPhase(true, ts, "prompt");
+                            ClearQuestion();
                         }
                         else
                         {
@@ -376,6 +443,10 @@ namespace ClaudeTrafficLight
                                     {
                                         // 工具回来了，模型还要继续 ⇒ 这一轮没结束
                                         SetPhase(true, ts, "tool_result");
+                                        string tid = Json.Str(b, "tool_use_id");
+                                        if (PendingToolUseId.Length > 0 &&
+                                            string.Equals(tid, PendingToolUseId, StringComparison.Ordinal))
+                                            ClearQuestion();
                                         break;
                                     }
                                 }

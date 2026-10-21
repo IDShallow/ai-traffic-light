@@ -3,6 +3,18 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [0.5.0] - 2026-10-21
+
+### Added
+
+- **面板快捷回答**：会话等待回答时，详情面板直接列出问题与选项；点一下 =
+  聚焦会话 + 通过扩展 deep link 把选项预填进输入框（发送仍由用户按 Enter）。
+  Claude Code / VSCode 会话生效；隐私模式下不显示问题与选项。
+
+### Fixed
+
+- 待回答状态不再每 20 秒重复弹通知（没有新的 hook 事件就不重复提示）。
+
 ## [0.4.2] - 2026-10-21
 
 ### Fixed
