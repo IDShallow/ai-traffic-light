@@ -47,6 +47,8 @@ namespace ClaudeTrafficLight
         private static DateTime _pidAt = DateTime.MinValue;
         private static string[] _filesCache;
         private static DateTime _filesAt = DateTime.MinValue;
+        private static List<SessionInfo> _dbCache;
+        private static DateTime _dbAt = DateTime.MinValue;
 
         public static List<SessionInfo> Scan(AppSettings settings, DateTime now)
         {
@@ -54,11 +56,54 @@ namespace ClaudeTrafficLight
             if (settings == null || !settings.MonitorCodex) return list;
 
             string dir = Path.Combine(Paths.Home, ".codex");
-            string sessions = Path.Combine(dir, "sessions");
-            if (!Directory.Exists(sessions)) return list;
+            if (!Directory.Exists(dir)) return list;
 
             int pid;
             bool running = IsRunning(out pid);
+
+            // 新版 Codex 桌面端（paginated 历史）不再追加 rollout，
+            // 实时数据和状态在 state_*.sqlite / thread_history_*.sqlite 里
+            List<SessionInfo> db;
+            if (_dbCache != null && (now - _dbAt).TotalSeconds < 1)
+            {
+                db = CloneAll(_dbCache);
+            }
+            else
+            {
+                db = ScanDatabase(dir, settings, now, running, pid);
+                _dbAt = now;
+                _dbCache = db == null ? null : CloneAll(db);
+            }
+            HashSet<string> seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (db != null)
+            {
+                for (int i = 0; i < db.Count; i++)
+                {
+                    list.Add(db[i]);
+                    seen.Add(db[i].SessionId);
+                }
+            }
+
+            list.AddRange(ScanRollouts(dir, settings, now, running, pid, seen));
+
+            if (list.Count > 8)
+            {
+                list.Sort(delegate(SessionInfo a, SessionInfo b)
+                {
+                    return b.LastActivity.CompareTo(a.LastActivity);
+                });
+                list.RemoveRange(8, list.Count - 8);
+            }
+            return list;
+        }
+
+        private static List<SessionInfo> ScanRollouts(string dir, AppSettings settings, DateTime now,
+            bool running, int pid, HashSet<string> skip)
+        {
+            List<SessionInfo> list = new List<SessionInfo>();
+            string sessions = Path.Combine(dir, "sessions");
+            if (!Directory.Exists(sessions)) return list;
+
             LoadTitles(dir);
 
             string[] files;
@@ -115,9 +160,10 @@ namespace ClaudeTrafficLight
                 s.Provider = "codex";
                 // 解析只读文件尾部，老会话的 session_meta 在开头；文件名里一定有 ID
                 string sid = p.SessionId.Length > 0 ? p.SessionId : GuessId(f);
+                if (sid.Length == 0 || (skip != null && skip.Contains(sid))) continue;
                 s.SessionId = sid;
                 string title;
-                if (sid.Length > 0 && Titles.TryGetValue(sid, out title))
+                if (Titles.TryGetValue(sid, out title))
                     s.Title = title;
                 s.Cwd = p.Cwd;
                 s.ProjectName = Ui.BaseName(p.Cwd);
@@ -139,6 +185,235 @@ namespace ClaudeTrafficLight
             }
 
             return list;
+        }
+
+        /// <summary>从 Codex 桌面端的 SQLite 会话库读会话（paginated 模式不写 rollout）。</summary>
+        private static List<SessionInfo> ScanDatabase(string dir, AppSettings settings, DateTime now,
+            bool running, int pid)
+        {
+            string statePath = FindDb(dir, "state_");
+            if (statePath == null) return null;
+
+            List<object[]> rows;
+            using (SqliteDb db = SqliteDb.OpenReadOnly(statePath))
+            {
+                if (db == null) return null;
+                rows = db.Query(
+                    "select id, coalesce(title,''), coalesce(name,''), coalesce(first_user_message,''), " +
+                    "coalesce(cwd,''), coalesce(rollout_path,''), updated_at_ms " +
+                    "from threads where archived = 0 order by updated_at_ms desc limit 24");
+            }
+
+            List<SessionInfo> list = new List<SessionInfo>();
+            for (int i = 0; i < rows.Count && list.Count < 8; i++)
+            {
+                object[] r = rows[i];
+                string id = SqliteDb.Str(r, 0);
+                long updMs = SqliteDb.Long(r, 6);
+                if (id.Length == 0 || updMs <= 0) continue;
+
+                DateTime updated = FromMs(updMs);
+                if ((now - updated).TotalHours > 48) continue;
+
+                double ageMin = (now - updated).TotalMinutes;
+                bool alive = ageMin < 2 || (running && ageMin < 120);
+                if (!alive && (!settings.ShowOffline || ageMin > 30)) continue;
+
+                string title = SqliteDb.Str(r, 1);
+                if (title.Length == 0) title = SqliteDb.Str(r, 2);
+                if (title.Length == 0) title = SqliteDb.Str(r, 3);
+
+                string cwd = SqliteDb.Str(r, 4);
+                if (cwd.StartsWith("\\\\?\\")) cwd = cwd.Substring(4);
+
+                SessionInfo s = new SessionInfo();
+                s.Provider = "codex";
+                s.SessionId = id;
+                s.Title = Cap(Ui.Shorten(title, 200), 200);
+                s.Cwd = cwd;
+                s.ProjectName = Ui.BaseName(cwd);
+                s.Entrypoint = "codex-desktop";
+                s.Pid = pid;
+                s.Alive = alive;
+                s.State = alive ? SessState.Done : SessState.Offline;
+                s.LastActivity = updated;
+                s.StateSince = updated;
+                s.TranscriptPath = SqliteDb.Str(r, 5);
+                list.Add(s);
+            }
+
+            string histPath = FindDb(dir, "thread_history_");
+            if (histPath == null || list.Count == 0) return list;
+
+            using (SqliteDb hist = SqliteDb.OpenReadOnly(histPath))
+            {
+                if (hist == null) return list;
+                for (int i = 0; i < list.Count; i++)
+                {
+                    SessionInfo s = list[i];
+                    string id = s.SessionId;
+
+                    List<object[]> turns = hist.Query(
+                        "select coalesce(status,''), coalesce(started_at,0) from thread_turns " +
+                        "where thread_id='" + id + "' order by rollout_ordinal desc limit 1");
+                    if (turns.Count > 0)
+                    {
+                        string waiting;
+                        SessState st = MapTurnState(SqliteDb.Str(turns[0], 0), out waiting);
+                        s.State = s.Alive ? st : SessState.Offline;
+                        s.WaitingFor = waiting;
+                        long started = SqliteDb.Long(turns[0], 1);
+                        if (started > 0) s.StateSince = FromMs(started * 1000L);
+                    }
+
+                    List<object[]> items = hist.Query(
+                        "select item_type, item_json from thread_items where thread_id='" + id + "' " +
+                        "and item_type in ('userMessage','agentMessage') and length(item_json) <= 65536 " +
+                        "order by rollout_ordinal desc limit 8");
+                    bool hasPrompt = false, hasReply = false;
+                    for (int k = 0; k < items.Count; k++)
+                    {
+                        string type = SqliteDb.Str(items[k], 0);
+                        if (type == "userMessage" && !hasPrompt)
+                        {
+                            string t = UserMessageText(SqliteDb.Str(items[k], 1));
+                            if (t.Length > 0)
+                            {
+                                s.LastPrompt = Cap(t, 2000);
+                                hasPrompt = true;
+                            }
+                        }
+                        else if (type == "agentMessage" && !hasReply)
+                        {
+                            string t = AgentMessageText(SqliteDb.Str(items[k], 1));
+                            if (t.Length > 0)
+                            {
+                                s.LastAssistant = Cap(t, 4000);
+                                hasReply = true;
+                            }
+                        }
+                    }
+                }
+            }
+            return list;
+        }
+
+        private static List<SessionInfo> CloneAll(List<SessionInfo> src)
+        {
+            List<SessionInfo> list = new List<SessionInfo>(src.Count);
+            for (int i = 0; i < src.Count; i++) list.Add(CloneInfo(src[i]));
+            return list;
+        }
+
+        private static SessionInfo CloneInfo(SessionInfo a)
+        {
+            SessionInfo b = new SessionInfo();
+            b.Provider = a.Provider;
+            b.SessionId = a.SessionId;
+            b.Pid = a.Pid;
+            b.Cwd = a.Cwd;
+            b.Name = a.Name;
+            b.HostSessionId = a.HostSessionId;
+            b.Title = a.Title;
+            b.ProjectName = a.ProjectName;
+            b.Entrypoint = a.Entrypoint;
+            b.Kind = a.Kind;
+            b.StatusRaw = a.StatusRaw;
+            b.WaitingFor = a.WaitingFor;
+            b.StatusAt = a.StatusAt;
+            b.Alive = a.Alive;
+            b.State = a.State;
+            b.Unread = a.Unread;
+            b.StateSince = a.StateSince;
+            b.LastPrompt = a.LastPrompt;
+            b.LastAssistant = a.LastAssistant;
+            b.LastTool = a.LastTool;
+            b.Model = a.Model;
+            b.ErrorText = a.ErrorText;
+            b.TodoDone = a.TodoDone;
+            b.TodoTotal = a.TodoTotal;
+            b.LastActivity = a.LastActivity;
+            b.FirstSeen = a.FirstSeen;
+            b.TranscriptPath = a.TranscriptPath;
+            b.HookEvent = a.HookEvent;
+            b.HookMessage = a.HookMessage;
+            b.HookAt = a.HookAt;
+            return b;
+        }
+
+        private static SessState MapTurnState(string status, out string waiting)
+        {
+            waiting = "";
+            switch ((status ?? "").ToLowerInvariant())
+            {
+                case "inprogress":
+                case "in_progress":
+                case "running":
+                    return SessState.Working;
+                case "failed":
+                case "error":
+                    return SessState.Error;
+                case "interrupted":
+                    waiting = "已中止";
+                    return SessState.Done;
+                default:
+                    return SessState.Done;
+            }
+        }
+
+        private static string AgentMessageText(string json)
+        {
+            Dictionary<string, object> d = Json.ParseObject(json);
+            return d == null ? "" : Json.Str(d, "text");
+        }
+
+        private static string UserMessageText(string json)
+        {
+            Dictionary<string, object> d = Json.ParseObject(json);
+            if (d == null) return "";
+            object[] content = Json.List(d, "content");
+            if (content == null) return Json.Str(d, "text");
+
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < content.Length; i++)
+            {
+                Dictionary<string, object> b = content[i] as Dictionary<string, object>;
+                if (b == null) continue;
+                string t = Json.Str(b, "text");
+                if (t.Length == 0) continue;
+                if (sb.Length > 0) sb.Append('\n');
+                sb.Append(t);
+            }
+            return sb.ToString();
+        }
+
+        private static string FindDb(string dir, string prefix)
+        {
+            try
+            {
+                string[] files = Directory.GetFiles(dir, prefix + "*.sqlite");
+                string best = null;
+                int bestN = -1;
+                for (int i = 0; i < files.Length; i++)
+                {
+                    string name = Path.GetFileNameWithoutExtension(files[i]);
+                    if (!name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) continue;
+                    int n;
+                    if (int.TryParse(name.Substring(prefix.Length), NumberStyles.Integer,
+                            CultureInfo.InvariantCulture, out n) && n > bestN)
+                    {
+                        bestN = n;
+                        best = files[i];
+                    }
+                }
+                return best;
+            }
+            catch { return null; }
+        }
+
+        private static DateTime FromMs(long ms)
+        {
+            return new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddMilliseconds(ms);
         }
 
         private static bool IsRunning(out int pid)

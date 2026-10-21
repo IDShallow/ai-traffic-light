@@ -3,6 +3,17 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [Unreleased]
+
+### Fixed
+
+- **Codex 活跃会话同步**：新版 Codex 桌面端改用 `state_*.sqlite` / `thread_history_*.sqlite`
+  保存实时状态，`rollout-*.jsonl` 不再追加。现在直接读 SQLite 会话库补全会话、标题与
+  工作/完成状态，rollout 作为兼容回退；正在对话的会话不会再漏显示。
+- **Codex 请求输入提示**：对话中调用 `request_user_input[_async]` 时立即进入
+  「等待你回答」并弹出问题内容；这一轮结束（`task_complete`）或用户回答后恢复，
+  不会长期停在等待状态。同步版调用会一直等到拿到输出。
+
 ## [0.4.0] - 2026-10-20
 
 ### Added
@@ -21,9 +32,6 @@
 - **Claude Code 标题回归**：会话行仍然优先显示 AI 标题，不会被注册表里的派生名
   （`administrator-xx`）覆盖。
 - **深链防护**：`codex://` / `claude://` 未注册时不再尝试启动，避免弹出"选择打开方式"。
-- **Codex 请求输入提示**：对话中调用 `request_user_input[_async]` 时立即进入
-  「等待你回答」并弹出问题内容；这一轮结束（`task_complete`）或用户回答后恢复，
-  不会长期停在等待状态。同步版调用会一直等到拿到输出。
 - **Codex 会话名**：标题查找改用文件名里的会话 ID，老会话不再退回显示 `Codex · <id>`，
   总览与列表显示 Codex 记录的 `thread_name`。
 - **跳到 Codex 会话**：双击 Codex 会话会通过 `codex://threads/<id>` 直接打开

@@ -133,7 +133,7 @@
 | `%USERPROFILE%\.claude\sessions\<pid>.json` | Claude：有哪些会话活着、忙 / 等 / 空闲、工作目录 |
 | `%USERPROFILE%\.claude\projects\<slug>\<sessionId>.jsonl` | Claude：AI 标题、最后提问/回复、待办进度、API 错误 |
 | 安装钩子后的 `Notification / Stop / ...` 事件 | Claude：精确捕捉「刚需要你回答 / 刚做完 / 刚出错」 |
-| `%USERPROFILE%\.codex\sessions\**\rollout-*.jsonl` + `session_index.jsonl` | Codex：会话状态、标题、最后提问/回复 |
+| `%USERPROFILE%\.codex\sessions\**\rollout-*.jsonl` + `session_index.jsonl` + `state_*.sqlite` / `thread_history_*.sqlite` | Codex：会话状态、标题、最后提问/回复 |
 | `%USERPROFILE%\.dsh\storages\session_projcache\sessions\*.json` | DSH：状态、标题、最后一轮问答 |
 
 - **无遥测、无账号、无云端**；唯一的网络请求是你主动点「检查更新」时的更新源请求。
@@ -144,9 +144,10 @@
 
 - 只支持 Windows 10 / 11（依赖 .NET Framework 4.x，系统自带，无需安装运行时）。
 - Claude：「等待你回答」在未安装钩子时依赖会话注册表状态；某些权限模式（如 auto）可能不弹出确认框。
-- Codex：压缩后的 rollout（`.jsonl.zst`）不解析；只监控正在运行或最近更新过的未压缩会话。
+- Codex：压缩后的 rollout（`.jsonl.zst`）不解析；新版桌面端的实时状态从
+  `state_*.sqlite` / `thread_history_*.sqlite` 读取，rollout 仅作兼容回退。
 - DeepSeek Harness：只在桌面端运行时显示其会话；关闭后按「已结束」处理（可在设置里打开显示）。
-- 跳转：Claude Code 能精确选中会话标签；Codex / DSH 目前只激活宿主窗口。
+- 跳转：Claude Code 能精确选中会话标签；Codex 会直接打开桌面端对应会话；DSH 目前只激活宿主窗口。
 - 托盘气泡是否显示为通知中心消息，取决于 Windows 通知设置。
 - 界面语言目前为中文。
 
@@ -231,8 +232,10 @@ It reads, read-only:
 - `%USERPROFILE%\.claude\sessions\<pid>.json` — live Claude sessions and their state;
 - `%USERPROFILE%\.claude\projects\<slug>\<sessionId>.jsonl` — Claude titles, last messages,
   todo progress and API errors (incremental tail reads; files can be 100 MB+);
-- `%USERPROFILE%\.codex\sessions\**\rollout-*.jsonl` and `session_index.jsonl` — Codex
-  state and titles (compressed `.jsonl.zst` rollouts are not parsed);
+- `%USERPROFILE%\.codex\sessions\**\rollout-*.jsonl`, `session_index.jsonl`, and
+  `state_*.sqlite` / `thread_history_*.sqlite` — Codex state and titles (compressed
+  `.jsonl.zst` rollouts are not parsed; the SQLite stores carry live state for the
+  newer desktop app);
 - `%USERPROFILE%\.dsh\storages\session_projcache\sessions\*.json` — DeepSeek Harness
   state, title and last turn.
 
