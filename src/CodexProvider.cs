@@ -30,6 +30,10 @@ namespace ClaudeTrafficLight
             public string WaitingFor = "";
             public SessState State = SessState.Done;
             public DateTime LastEntry = DateTime.MinValue;
+            // 对话中调用 request_user_input[_async] 后，这一轮会以 task_complete 结束，
+            // 但实际是在等用户回答；要一直保持 NeedsInput 直到下一轮开始。
+            public bool AskedUser;
+            public string PendingSyncCallId = "";
         }
 
         private static readonly object Sync = new object();
@@ -240,18 +244,29 @@ namespace ClaudeTrafficLight
                         et == "web_search_begin" || et == "web_search_end" ||
                         et == "agent_reasoning")
                     {
+                        if (et == "task_started")
+                        {
+                            p.AskedUser = false;
+                            p.PendingSyncCallId = "";
+                        }
                         p.State = SessState.Working;
                         p.WaitingFor = "";
                     }
                     else if (et == "task_complete")
                     {
+                        // 异步提问不会阻塞这一轮：提问瞬间给过 NeedsInput 提醒后，
+                        // turn 结束就回到 Done，不能一直停在「等待你回答」
                         p.State = SessState.Done;
+                        p.AskedUser = false;
+                        p.PendingSyncCallId = "";
                         p.WaitingFor = "";
                         string m = Json.Str(payload, "last_agent_message");
                         if (m.Length > 0) p.LastAssistant = Cap(m, 4000);
                     }
                     else if (et == "turn_aborted")
                     {
+                        p.AskedUser = false;
+                        p.PendingSyncCallId = "";
                         p.State = SessState.Done;
                         p.WaitingFor = "已中止";
                     }
@@ -277,13 +292,20 @@ namespace ClaudeTrafficLight
                     {
                         string m = Json.Str(payload, "message");
                         if (m.Length > 0) p.LastPrompt = Cap(m, 2000);
+                        p.AskedUser = false;
+                        p.PendingSyncCallId = "";
                         if (p.State == SessState.NeedsInput) { p.State = SessState.Working; p.WaitingFor = ""; }
                     }
                 }
                 else if (type == "response_item")
                 {
-                    // 批准之后出现新的条目（工具输出等）⇒ 已经恢复工作
-                    if (p.State == SessState.NeedsInput) { p.State = SessState.Working; p.WaitingFor = ""; }
+                    // 批准之后出现新的条目（工具输出等）⇒ 已经恢复工作；
+                    // 但正在等用户回答时要保持 NeedsInput
+                    if (!p.AskedUser && p.State == SessState.NeedsInput)
+                    {
+                        p.State = SessState.Working;
+                        p.WaitingFor = "";
+                    }
 
                     string pt = Json.Str(payload, "type");
                     if (pt == "message")
@@ -293,18 +315,62 @@ namespace ClaudeTrafficLight
                         if (text2.Length > 0)
                         {
                             if (role == "assistant") p.LastAssistant = Cap(text2, 4000);
-                            else if (role == "user") p.LastPrompt = Cap(text2, 2000);
+                            else if (role == "user")
+                            {
+                                p.LastPrompt = Cap(text2, 2000);
+                                p.AskedUser = false;
+                                p.PendingSyncCallId = "";
+                            }
                         }
                     }
-                    else if (pt == "function_call")
+                    else if (pt == "function_call" || pt == "custom_tool_call")
                     {
                         string name = Json.Str(payload, "name");
                         if (name.Length > 0) p.LastTool = name;
+
+                        if (name == "request_user_input_async" || name == "request_user_input")
+                        {
+                            p.AskedUser = true;
+                            p.State = SessState.NeedsInput;
+                            string q = ExtractQuestion(payload);
+                            p.WaitingFor = q.Length > 0 ? q : "等待你回答问题";
+                            if (q.Length > 0) p.LastAssistant = Cap(q, 4000);
+                            if (name == "request_user_input")
+                                p.PendingSyncCallId = Json.Str(payload, "call_id");
+                        }
+                    }
+                    else if (pt == "function_call_output" || pt == "custom_tool_call_output")
+                    {
+                        // 同步 request_user_input 拿到答案后恢复工作
+                        if (p.PendingSyncCallId.Length > 0 &&
+                            string.Equals(Json.Str(payload, "call_id"), p.PendingSyncCallId, StringComparison.Ordinal))
+                        {
+                            p.PendingSyncCallId = "";
+                            p.AskedUser = false;
+                            p.State = SessState.Working;
+                            p.WaitingFor = "";
+                        }
                     }
                 }
             }
 
             return p;
+        }
+
+        private static string ExtractQuestion(Dictionary<string, object> payload)
+        {
+            object raw = payload.ContainsKey("arguments") ? payload["arguments"] : null;
+            Dictionary<string, object> d = raw as Dictionary<string, object>;
+            if (d == null && raw is string)
+                d = Json.ParseObject((string)raw);
+            if (d == null) return "";
+
+            object[] qs = Json.List(d, "questions");
+            if (qs == null || qs.Length == 0) return "";
+
+            Dictionary<string, object> q = qs[0] as Dictionary<string, object>;
+            if (q == null) return "";
+            return Json.Str(q, "title").Trim();
         }
 
         private static string ExtractText(Dictionary<string, object> payload)
