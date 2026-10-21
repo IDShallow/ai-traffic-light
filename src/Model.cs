@@ -131,6 +131,10 @@ namespace ClaudeTrafficLight
         public bool MonitorClaude = true;
         public bool MonitorCodex = true;
         public bool MonitorDsh = true;
+        /// <summary>跳转到对话后把主窗口收进托盘（总览窗口不受影响）。默认开启。</summary>
+        public bool HideAfterJump = true;
+        /// <summary>是否已经提示过“跳转后收进托盘”的说明（只提示一次）。</summary>
+        public bool JumpHideHintShown;
         public double Opacity = 1.0;
         public bool StartMinimized;
 
@@ -167,6 +171,8 @@ namespace ClaudeTrafficLight
                 s.MonitorClaude = Json.Bool(d, "monitorClaude", s.MonitorClaude);
                 s.MonitorCodex = Json.Bool(d, "monitorCodex", s.MonitorCodex);
                 s.MonitorDsh = Json.Bool(d, "monitorDsh", s.MonitorDsh);
+                s.HideAfterJump = Json.Bool(d, "hideAfterJump", s.HideAfterJump);
+                s.JumpHideHintShown = Json.Bool(d, "jumpHideHintShown", s.JumpHideHintShown);
                 s.Opacity = Number(d, "opacity", s.Opacity);
                 s.StartMinimized = Json.Bool(d, "startMinimized", s.StartMinimized);
             }
@@ -225,6 +231,8 @@ namespace ClaudeTrafficLight
                 d["monitorClaude"] = MonitorClaude;
                 d["monitorCodex"] = MonitorCodex;
                 d["monitorDsh"] = MonitorDsh;
+                d["hideAfterJump"] = HideAfterJump;
+                d["jumpHideHintShown"] = JumpHideHintShown;
                 d["opacity"] = Opacity;
                 d["startMinimized"] = StartMinimized;
                 File.WriteAllText(Paths.SettingsFile, Json.Pretty(d), new System.Text.UTF8Encoding(false));

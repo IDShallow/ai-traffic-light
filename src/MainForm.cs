@@ -619,7 +619,10 @@ namespace ClaudeTrafficLight
             // Codex 桌面端：官方深链直接打开对应会话（不要先去前台聚焦 VS Code）
             if (string.Equals(s.Provider, "codex", StringComparison.OrdinalIgnoreCase) &&
                 !string.IsNullOrEmpty(s.SessionId) && OpenCodexSession(s.SessionId))
+            {
+                AfterJump();
                 return;
+            }
 
             bool isVscode = string.Equals(s.Entrypoint, "claude-vscode", StringComparison.OrdinalIgnoreCase);
 
@@ -644,7 +647,10 @@ namespace ClaudeTrafficLight
                 // 1) 会话标签页已经开着：按标题直接选中（VSCode 的会话就是标题命名的标签页）
                 if (hwnd != IntPtr.Zero && !string.IsNullOrEmpty(s.Title) &&
                     TabFocus.SelectByTitle(hwnd, s.Title))
+                {
+                    AfterJump();
                     return;
+                }
 
                 // 2) 没开：用扩展登记的 deep link 打开该会话，再选中一次
                 if (!string.IsNullOrEmpty(s.SessionId))
@@ -658,6 +664,7 @@ namespace ClaudeTrafficLight
                         System.Threading.Thread.Sleep(500);
                         if (hwnd != IntPtr.Zero && !string.IsNullOrEmpty(s.Title))
                             TabFocus.SelectByTitle(hwnd, s.Title);
+                        AfterJump();
                         return;
                     }
                     catch { }
@@ -669,10 +676,17 @@ namespace ClaudeTrafficLight
             {
                 if (hwnd != IntPtr.Zero && !string.IsNullOrEmpty(s.Name) &&
                     DesktopFocus.SelectSession(hwnd, s.Name))
+                {
+                    AfterJump();
                     return;
+                }
 
                 // 退路：官方深链。部分版本没接本地会话，留着兜底
-                if (OpenDesktopSession(s.HostSessionId)) return;
+                if (OpenDesktopSession(s.HostSessionId))
+                {
+                    AfterJump();
+                    return;
+                }
             }
 
             if (!focused)
@@ -684,6 +698,28 @@ namespace ClaudeTrafficLight
                 }
                 catch { }
             }
+        }
+
+        /// <summary>跳转成功后按设置把主窗口收进托盘（总览窗口不受影响）。</summary>
+        private void AfterJump()
+        {
+            if (!_settings.HideAfterJump || !Visible) return;
+
+            // 用下面这条更具体的说明代替通用的“还在后台运行”
+            _trayHintShown = true;
+            HideToTray();
+
+            if (_settings.JumpHideHintShown) return;
+            _settings.JumpHideHintShown = true;
+            _settings.Save();
+
+            try
+            {
+                _tray.ShowBalloonTip(6000, "主窗口已收进托盘",
+                    "跳转后一般不用再盯着主窗口了。双击托盘图标可随时打开；总览窗口不受影响；" +
+                    "这个行为可以在设置里关掉。", ToolTipIcon.None);
+            }
+            catch { }
         }
 
         private static bool OpenCodexSession(string sessionId)
@@ -756,6 +792,7 @@ namespace ClaudeTrafficLight
                     Process.Start(new ProcessStartInfo(uri) { UseShellExecute = true });
                     Log.Write("quick reply prefill " + s.SessionId + " :: " + option);
                     ShowBalloon("已填入输入框", "到会话里按 Enter 发送：" + Ui.Shorten(option, 100));
+                    AfterJump();
                     return;
                 }
                 catch { }

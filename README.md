@@ -1,4 +1,4 @@
-# Claude Traffic Light · Claude 状态红绿灯
+# AI Traffic Light · AI 状态红绿灯
 
 中文 · [English](#english)
 
@@ -34,7 +34,7 @@
 - **跳到会话**：双击一行。Claude Code 在 VSCode 里会**直接选中/打开对应的会话标签页**
   （标签没开会用扩展的 deep link 先打开）；Claude 桌面端里会**直接选中侧边栏里的对应会话**；
   Codex 会**直接打开 ChatGPT/Codex 桌面端里的对应会话**；DeepSeek Harness 与终端里的 Claude
-  会话则激活宿主窗口。
+  会话则激活宿主窗口。跳转成功后主窗口会自动收进托盘（可在设置里关掉），总览窗口保持不动。
 - **快捷回答**：会话等待回答时，详情里直接列出问题与选项；点一下把选项预填到会话输入框，
   按 Enter 发送（Claude Code / VSCode；隐私模式下不显示问题与选项）。
 - **总览窗**：每个会话一个小格子；非隐私模式下显示会话标题（没有标题时用会话名），
@@ -203,7 +203,7 @@ Copyright (C) 2026 IDShallow
 
 ## English
 
-**Claude Traffic Light** is a small always-on-top Windows app that watches your local
+**AI Traffic Light** is a small always-on-top Windows app that watches your local
 **Claude Code, Codex, and DeepSeek Harness** sessions and shows their live status as a
 traffic light. (The window title is “AI 状态红绿灯” because it now covers multiple agents.)
 

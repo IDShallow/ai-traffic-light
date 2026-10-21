@@ -1,6 +1,6 @@
 # Contributing
 
-感谢你愿意改进 Claude Traffic Light。这个项目刻意保持**很小**：单 exe、零第三方依赖、
+感谢你愿意改进 AI Traffic Light。这个项目刻意保持**很小**：单 exe、零第三方依赖、
 只做「看清本机 Claude 会话状态」这一件事。
 
 ## 构建

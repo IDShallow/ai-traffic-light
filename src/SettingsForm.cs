@@ -11,7 +11,7 @@ namespace ClaudeTrafficLight
     internal sealed class SettingsForm : Form
     {
         private readonly AppSettings _settings;
-        private readonly CheckBox[] _checks = new CheckBox[13];
+        private readonly CheckBox[] _checks = new CheckBox[14];
         private Label _hookStatus;
         private Button _hookBtn;
         private Label _updateStatus;
@@ -100,7 +100,7 @@ namespace ClaudeTrafficLight
             // 重建时先把旧的尺寸限制放开，否则新尺寸会被旧的 MaximumSize 夹回去
             MinimumSize = Size.Empty;
             MaximumSize = Size.Empty;
-            ClientSize = new Size(Px(470), Px(700));
+            ClientSize = new Size(Px(470), Px(740));
             MinimumSize = Size;
             MaximumSize = Size;
 
@@ -127,9 +127,20 @@ namespace ClaudeTrafficLight
             _checks[8] = AddCheck("启动时最小化到托盘", x, y, _settings.StartMinimized, delegate { _settings.StartMinimized = _checks[8].Checked; Save(); });
             y += step;
             _checks[9] = AddCheck("隐私模式（只显示状态，不显示对话名 / 内容）", x, y, _settings.PrivacyMode, delegate { _settings.PrivacyMode = _checks[9].Checked; Save(); });
+            y += step;
+            _checks[10] = AddCheck("跳转后把主窗口收进托盘", x, y, _settings.HideAfterJump, delegate { _settings.HideAfterJump = _checks[10].Checked; Save(); });
+            y += Px(22);
+            Label jumpHint = new Label();
+            jumpHint.Text = "开启后：跳转成功后主窗口自动收进托盘，总览窗口不受影响。";
+            jumpHint.AutoSize = true;
+            jumpHint.Font = _fonts.F75;
+            jumpHint.ForeColor = Ui.TextFaint;
+            jumpHint.BackColor = Ui.Bg;
+            jumpHint.Location = new Point(x + Px(22), y);
+            Controls.Add(jumpHint);
 
             // ---- 版本 / 检查更新 ----
-            y += Px(38);
+            y += Px(20);
             Label ver = new Label();
             ver.Text = "当前版本 v" + AppInfo.Version;
             ver.AutoSize = true;
@@ -211,12 +222,12 @@ namespace ClaudeTrafficLight
             Controls.Add(sources);
             y += Px(24);
 
-            _checks[10] = AddCheck("Claude Code", x, y, _settings.MonitorClaude,
-                delegate { _settings.MonitorClaude = _checks[10].Checked; Save(); });
-            _checks[11] = AddCheck("Codex", x + Px(106), y, _settings.MonitorCodex,
-                delegate { _settings.MonitorCodex = _checks[11].Checked; Save(); });
-            _checks[12] = AddCheck("DeepSeek Harness", x + Px(186), y, _settings.MonitorDsh,
-                delegate { _settings.MonitorDsh = _checks[12].Checked; Save(); });
+            _checks[11] = AddCheck("Claude Code", x, y, _settings.MonitorClaude,
+                delegate { _settings.MonitorClaude = _checks[11].Checked; Save(); });
+            _checks[12] = AddCheck("Codex", x + Px(106), y, _settings.MonitorCodex,
+                delegate { _settings.MonitorCodex = _checks[12].Checked; Save(); });
+            _checks[13] = AddCheck("DeepSeek Harness", x + Px(186), y, _settings.MonitorDsh,
+                delegate { _settings.MonitorDsh = _checks[13].Checked; Save(); });
 
             Button openDir = new Button();
             openDir.Text = "打开配置目录";
