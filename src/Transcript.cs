@@ -34,6 +34,27 @@ namespace ClaudeTrafficLight
         public int TodoTotal;
         public int Entries;
 
+        /// <summary>转录里最后一条记录表示的阶段：true=这一轮还没结束。</summary>
+        public bool PhaseWorking;
+        public DateTime PhaseAt = DateTime.MinValue;
+        public string PhaseKind = "";
+
+        private void SetPhase(bool working, DateTime ts, string kind)
+        {
+            if (ts == DateTime.MinValue)
+            {
+                // last-prompt 这类条目没有 timestamp：只更新阶段，别用"现在"污染时间边界，
+                // 否则启动时扫到一条旧 last-prompt 就会把已完成会话误判成工作中。
+                PhaseWorking = working;
+                PhaseKind = kind;
+                return;
+            }
+            if (PhaseAt != DateTime.MinValue && ts < PhaseAt) return;
+            PhaseWorking = working;
+            PhaseAt = ts;
+            PhaseKind = kind;
+        }
+
         public TranscriptReader(string path)
         {
             Path = path;
@@ -63,6 +84,9 @@ namespace ClaudeTrafficLight
                 // 文件被截断 / 轮换
                 _offset = 0;
                 _headScanned = false;
+                PhaseWorking = false;
+                PhaseAt = DateTime.MinValue;
+                PhaseKind = "";
             }
 
             if (_offset == 0 && len > TailWindow)
@@ -252,6 +276,7 @@ namespace ClaudeTrafficLight
                 {
                     string p = Json.Str(o, "lastPrompt");
                     if (p.Length > 0) LastPrompt = Cap(p, 2000);
+                    if (!headOnly) SetPhase(true, ts, "prompt");
                     continue;
                 }
 
@@ -297,6 +322,7 @@ namespace ClaudeTrafficLight
                     }
 
                     object[] blocks = msg.ContainsKey("content") ? msg["content"] as object[] : null;
+                    bool hasToolUse = false;
                     if (blocks != null)
                     {
                         for (int i = 0; i < blocks.Length; i++)
@@ -311,12 +337,19 @@ namespace ClaudeTrafficLight
                             }
                             else if (bt == "tool_use")
                             {
+                                hasToolUse = true;
                                 string name = Json.Str(b, "name");
                                 if (name.Length > 0) LastTool = name;
                                 if (name == "TodoWrite") ReadTodos(b);
                             }
                         }
                     }
+
+                    // 阶段：有工具调用 / stop_reason=tool_use ⇒ 还在这一轮里；
+                    // 明确的 end_turn 才算这一轮结束。
+                    string stop = Json.Str(msg, "stop_reason");
+                    if (hasToolUse || stop == "tool_use") SetPhase(true, ts, "tool_use");
+                    else if (stop == "end_turn") SetPhase(false, ts, "end_turn");
                 }
                 else if (type == "user")
                 {
@@ -325,7 +358,29 @@ namespace ClaudeTrafficLight
                     if (msg.ContainsKey("content"))
                     {
                         string s = msg["content"] as string;
-                        if (s != null && s.Trim().Length > 0) LastPrompt = Cap(s, 2000);
+                        if (s != null)
+                        {
+                            if (s.Trim().Length > 0) LastPrompt = Cap(s, 2000);
+                            SetPhase(true, ts, "prompt");
+                        }
+                        else
+                        {
+                            object[] blocks = msg["content"] as object[];
+                            if (blocks != null)
+                            {
+                                for (int i = 0; i < blocks.Length; i++)
+                                {
+                                    Dictionary<string, object> b = blocks[i] as Dictionary<string, object>;
+                                    if (b == null) continue;
+                                    if (Json.Str(b, "type") == "tool_result")
+                                    {
+                                        // 工具回来了，模型还要继续 ⇒ 这一轮没结束
+                                        SetPhase(true, ts, "tool_result");
+                                        break;
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }

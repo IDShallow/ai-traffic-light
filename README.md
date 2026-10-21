@@ -20,7 +20,7 @@
 
 ## 项目状态
 
-当前版本 **v0.4.0**（2026-10-20）：Claude Code / Codex / DeepSeek Harness 多来源监控，
+当前版本 **v0.4.1**（2026-10-21）：Claude Code / Codex / DeepSeek Harness 多来源监控，
 含安装包、覆盖升级、软件内更新、隐私模式与 GitHub Actions 自动发布。
 最新下载见 [Releases](../../releases)。
 

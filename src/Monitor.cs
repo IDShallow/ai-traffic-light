@@ -390,6 +390,17 @@ namespace ClaudeTrafficLight
                 (DateTime.UtcNow - st.Reader.ErrorAt).TotalMinutes < 3)
                 s = SessState.Error;
 
+            // 注册表的 status 只在回合边界写；如果转录里已经有"新回合/工具在跑"的记录，
+            // 且比 statusUpdatedAt（或 Stop 钩子）更晚，说明注册表是旧的 ⇒ 按工作中算。
+            if (s == SessState.Done && st.Reader != null && st.Reader.PhaseWorking &&
+                st.Reader.PhaseAt != DateTime.MinValue)
+            {
+                DateTime boundary = r.StatusAt;
+                if (hookAt != DateTime.MinValue && hookAt > boundary) boundary = hookAt;
+                if (boundary == DateTime.MinValue || st.Reader.PhaseAt > boundary)
+                    s = SessState.Working;
+            }
+
             return s;
         }
 

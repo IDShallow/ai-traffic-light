@@ -3,6 +3,15 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [0.4.1] - 2026-10-21
+
+### Fixed
+
+- **状态兜底**：未安装钩子时，注册表的 `status` 可能滞后（新回合开始、模型还在生成时仍是 `idle`）。
+  现在解析转录的阶段（用户提问 / `tool_use` / `tool_result` / `end_turn`）：
+  如果转录里已经有比 `statusUpdatedAt`（或 Stop 钩子）更新的"工作中"记录，就按工作中算。
+- 没有 timestamp 的 `last-prompt` 不再把阶段时间设为"现在"，避免启动时把已完成会话误判成工作中。
+
 ## [0.4.0] - 2026-10-20
 
 ### Added
