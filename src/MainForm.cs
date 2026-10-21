@@ -196,23 +196,9 @@ namespace ClaudeTrafficLight
 
         private void EnsureOnScreen()
         {
-            bool ok = false;
-            Rectangle r = new Rectangle(Location, Size);
-            Screen[] screens = Screen.AllScreens;
-            for (int i = 0; i < screens.Length; i++)
-            {
-                Rectangle wa = screens[i].WorkingArea;
-                if (wa.IntersectsWith(r) && r.Left >= wa.Left - Ui.Px(40) && r.Top >= wa.Top - Ui.Px(20))
-                {
-                    ok = true;
-                    break;
-                }
-            }
-            if (!ok)
-            {
-                Rectangle wa = Screen.PrimaryScreen.WorkingArea;
-                Location = new Point(wa.Right - Width - Ui.Px(24), wa.Top + Ui.Px(24));
-            }
+            // 多显示器：主窗口在副屏（含负坐标）就留在副屏；
+            // 只有整块跑出所有屏幕（显示器被拔掉/分辨率变了）才挪回最近的一块
+            Location = ScreenUtil.KeepVisible(new Rectangle(Location, Size));
         }
 
         protected override void SetVisibleCore(bool value)

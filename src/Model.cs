@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Globalization;
 using System.IO;
 using System.Web.Script.Serialization;
+using System.Windows.Forms;
 
 namespace ClaudeTrafficLight
 {
@@ -244,6 +246,52 @@ namespace ClaudeTrafficLight
         public static string SettingsFile = Path.Combine(AppData, "settings.json");
         public static string ClaudeSettingsFile = Path.Combine(ClaudeDir, "settings.json");
         public static string ExePath = System.Reflection.Assembly.GetExecutingAssembly().Location;
+    }
+
+    /// <summary>
+    /// 多显示器兜底：窗口在副屏上就留在副屏，别按主屏工作区去夹。
+    /// 只有窗口已经不在任何一块屏幕上（比如显示器被拔掉）才挪回来。
+    /// </summary>
+    internal static class ScreenUtil
+    {
+        /// <summary>至少一半面积落在某块屏幕的工作区里，就当它是可见的、不动它。</summary>
+        public static bool IsReasonablyVisible(Rectangle b)
+        {
+            long area = (long)b.Width * b.Height;
+            if (area <= 0) return false;
+
+            Screen[] screens = Screen.AllScreens;
+            for (int i = 0; i < screens.Length; i++)
+            {
+                Rectangle x = Rectangle.Intersect(b, screens[i].WorkingArea);
+                if (x.Width > 0 && x.Height > 0 && (long)x.Width * x.Height * 2 >= area)
+                    return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// 可见就不动；不可见则夹到离它最近的那块屏幕里。
+        /// 跨屏只露出一小块也算"不可见"，会被拉回交集最大的那块屏。
+        /// </summary>
+        public static Point KeepVisible(Rectangle b)
+        {
+            if (IsReasonablyVisible(b)) return b.Location;
+
+            Rectangle wa = Screen.FromRectangle(b).WorkingArea;
+            int x = b.X, y = b.Y;
+
+            if (x < wa.Left) x = wa.Left;
+            if (y < wa.Top) y = wa.Top;
+            if (x + b.Width > wa.Right) x = wa.Right - b.Width;
+            if (y + b.Height > wa.Bottom) y = wa.Bottom - b.Height;
+
+            // 窗口比工作区还大时，保证左上角仍然可见
+            if (x < wa.Left) x = wa.Left;
+            if (y < wa.Top) y = wa.Top;
+
+            return new Point(x, y);
+        }
     }
 
     /// <summary>开机自启：写 HKCU\...\Run。安装包也写这份，应用启动时按它校准设置。</summary>

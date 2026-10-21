@@ -64,14 +64,9 @@ namespace ClaudeTrafficLight
 
         private void EnsureOnScreen()
         {
-            Rectangle wa = Screen.PrimaryScreen.WorkingArea;
-            int x = Location.X, y = Location.Y;
-            if (x < wa.Left) x = wa.Left + Ui.Px(8);
-            if (y < wa.Top) y = wa.Top + Ui.Px(8);
-            if (x + Width > wa.Right) x = wa.Right - Width - Ui.Px(8);
-            if (y + Height > wa.Bottom) y = wa.Bottom - Height - Ui.Px(8);
-            Location = new Point(x, y);
+            // 多显示器：窗口在哪块屏就留在哪块屏；每次刷新都调这里，不能按主屏夹
             _positioned = true;
+            Location = ScreenUtil.KeepVisible(new Rectangle(Location, Size));
         }
 
         public void SetItems(List<SessionInfo> items)
