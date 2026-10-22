@@ -978,6 +978,16 @@ namespace ClaudeTrafficLight
             ToolStripMenuItem exit = new ToolStripMenuItem("退出");
             exit.Click += delegate { ExitApp(); };
 
+            ToolStripMenuItem repo = new ToolStripMenuItem("GitHub 项目主页（求个 ⭐）");
+            repo.Click += delegate
+            {
+                try
+                {
+                    Process.Start(new ProcessStartInfo(AppInfo.RepoUrl) { UseShellExecute = true });
+                }
+                catch { }
+            };
+
             menu.Items.Add(_miShow);
             menu.Items.Add(_miOverview);
             menu.Items.Add(_miPrivacy);
@@ -985,6 +995,7 @@ namespace ClaudeTrafficLight
             menu.Items.Add(_miNotify);
             menu.Items.Add(_miAutoStart);
             menu.Items.Add(new ToolStripSeparator());
+            menu.Items.Add(repo);
             menu.Items.Add(exit);
 
             _tray.ContextMenuStrip = menu;

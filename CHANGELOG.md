@@ -3,6 +3,13 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [0.5.7] - 2026-10-22
+
+### Added
+
+- **项目主页入口**：设置页显示 GitHub 地址（可点击），并附「给个 ⭐ Star / 提 Issue」的文案；
+  托盘菜单也加了「GitHub 项目主页（求个 ⭐）」。
+
 ## [0.5.6] - 2026-10-22
 
 ### Added

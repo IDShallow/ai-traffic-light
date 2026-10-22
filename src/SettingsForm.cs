@@ -130,7 +130,7 @@ namespace ClaudeTrafficLight
         {
             MinimumSize = Size.Empty;
             MaximumSize = Size.Empty;
-            ClientSize = new Size(Px(470), Px(820));
+            ClientSize = new Size(Px(470), Px(870));
 
             // 内容放进可滚动面板：手动放大时 1080p 也放得下
             _scroll = new Panel();
@@ -138,7 +138,7 @@ namespace ClaudeTrafficLight
             _scroll.Size = new Size(ClientSize.Width, ClientSize.Height - HeaderH);
             _scroll.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             _scroll.AutoScroll = true;
-            _scroll.AutoScrollMinSize = new Size(0, Px(820) - HeaderH);
+            _scroll.AutoScrollMinSize = new Size(0, Px(870) - HeaderH);
             _scroll.BackColor = Ui.Bg;
             Controls.Add(_scroll);
 
@@ -283,6 +283,28 @@ namespace ClaudeTrafficLight
             _updateStatus.Size = new Size(ClientSize.Width - Px(48), Px(18));
             _scroll.Controls.Add(_updateStatus);
 
+            // ---- 项目主页 / 求 Star ----
+            y += Px(44);
+            Label repoLabel = new Label();
+            repoLabel.Text = "GitHub：IDShallow/ai-traffic-light ↗";
+            repoLabel.AutoSize = true;
+            repoLabel.Font = _fonts.F85;
+            repoLabel.ForeColor = Color.FromArgb(120, 170, 255);
+            repoLabel.BackColor = Ui.Bg;
+            repoLabel.Cursor = Cursors.Hand;
+            repoLabel.Location = new Point(x, y);
+            repoLabel.Click += delegate { OpenRepo(); };
+            _scroll.Controls.Add(repoLabel);
+
+            Label starHint = new Label();
+            starHint.Text = "如果它帮到了你，点上面的链接给个 ⭐ Star 支持一下；有问题也欢迎提 Issue。";
+            starHint.AutoSize = true;
+            starHint.Font = _fonts.F75;
+            starHint.ForeColor = Ui.TextFaint;
+            starHint.BackColor = Ui.Bg;
+            starHint.Location = new Point(x, y + Px(20));
+            _scroll.Controls.Add(starHint);
+
             // ---- 钩子 ----
             y += Px(56);
             Label hookTitle = new Label();
@@ -355,7 +377,7 @@ namespace ClaudeTrafficLight
             Button openDir = new Button();
             openDir.Text = "打开配置目录";
             openDir.Size = new Size(Px(110), Px(30));
-            openDir.Location = new Point(x, Px(820) - HeaderH - Px(50));
+            openDir.Location = new Point(x, Px(870) - HeaderH - Px(50));
             openDir.FlatStyle = FlatStyle.Flat;
             openDir.FlatAppearance.BorderColor = Ui.Line;
             openDir.BackColor = Ui.Bg3;
@@ -374,7 +396,7 @@ namespace ClaudeTrafficLight
             Button close = new Button();
             close.Text = "关闭";
             close.Size = new Size(Px(86), Px(30));
-            close.Location = new Point(ClientSize.Width - Px(24) - close.Width, Px(820) - HeaderH - Px(50));
+            close.Location = new Point(ClientSize.Width - Px(24) - close.Width, Px(870) - HeaderH - Px(50));
             close.FlatStyle = FlatStyle.Flat;
             close.FlatAppearance.BorderColor = Ui.Line;
             close.BackColor = Ui.Bg3;
@@ -406,6 +428,15 @@ namespace ClaudeTrafficLight
             {
                 f.ShowDialog(this);
             }
+        }
+
+        private void OpenRepo()
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo(AppInfo.RepoUrl) { UseShellExecute = true });
+            }
+            catch { }
         }
 
         private CheckBox AddCheck(string text, int x, int y, bool value, EventHandler changed)

@@ -4,5 +4,5 @@ using System.Reflection;
 [assembly: AssemblyDescription("桌面常驻的 Claude 会话状态红绿灯")]
 [assembly: AssemblyProduct("Claude 状态红绿灯")]
 [assembly: AssemblyCompany("IDShallow")]
-[assembly: AssemblyVersion("0.5.6.0")]
-[assembly: AssemblyFileVersion("0.5.6.0")]
+[assembly: AssemblyVersion("0.5.7.0")]
+[assembly: AssemblyFileVersion("0.5.7.0")]
