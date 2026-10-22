@@ -45,6 +45,20 @@ namespace ClaudeTrafficLight
         /// <summary>启动时的兜底缩放（屏幕/系统 DPI）；各窗口按自己所在显示器的 DPI 再覆盖。</summary>
         public static float Scale = 1f;
 
+        /// <summary>用户手动缩放百分比：0 = 跟随系统；100/125/150/175/200。</summary>
+        public static int ManualScalePercent;
+
+        public static float ManualFactor
+        {
+            get { return ManualScalePercent > 0 ? ManualScalePercent / 100f : 1f; }
+        }
+
+        /// <summary>显示器 DPI 缩放 × 用户手动缩放。</summary>
+        public static float EffectiveScale(float dpiScale)
+        {
+            return dpiScale * ManualFactor;
+        }
+
         public static int Px(int v) { return (int)Math.Round(v * Scale); }
 
         private static readonly Dictionary<int, UiFonts> _fontCache = new Dictionary<int, UiFonts>();

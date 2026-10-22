@@ -69,6 +69,7 @@ namespace ClaudeTrafficLight
             Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
 
             AppSettings settings = AppSettings.Load();
+            Ui.ManualScalePercent = settings.UiScalePercent;
             bool runAtLogin = AutoStart.IsEnabled();
             if (runAtLogin) settings.AutoStart = true;
             bool startHidden = settings.StartMinimized || HasArg(args, "--minimized");

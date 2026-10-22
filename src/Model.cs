@@ -36,6 +36,8 @@ namespace ClaudeTrafficLight
         public bool Alive;
         public SessState State = SessState.Offline;
         public bool Unread;
+        /// <summary>用户取消勾选的会话：仍然显示状态，但不计数、不提示、不进总览。</summary>
+        public bool Muted;
         public DateTime StateSince = DateTime.MinValue;
 
         public string LastPrompt = "";
@@ -141,6 +143,37 @@ namespace ClaudeTrafficLight
         public bool AutoCheckUpdate = true;
         /// <summary>自动检查间隔（小时）：1 / 3 / 6 / 12 / 24。</summary>
         public int UpdateCheckHours = 6;
+        /// <summary>不监控的会话（"provider:sessionId"）；新会话默认都监控。</summary>
+        public string[] MutedSessions = new string[0];
+        /// <summary>界面缩放百分比：0 = 跟随系统；100/125/150/175/200。</summary>
+        public int UiScalePercent;
+
+        public bool IsMuted(SessionInfo s)
+        {
+            if (s == null || string.IsNullOrEmpty(s.SessionId) || MutedSessions == null) return false;
+            string key = MuteKey(s);
+            for (int i = 0; i < MutedSessions.Length; i++)
+                if (string.Equals(MutedSessions[i], key, StringComparison.OrdinalIgnoreCase)) return true;
+            return false;
+        }
+
+        public void SetMuted(SessionInfo s, bool muted)
+        {
+            if (s == null || string.IsNullOrEmpty(s.SessionId)) return;
+            string key = MuteKey(s);
+            List<string> list = new List<string>(MutedSessions ?? new string[0]);
+            list.RemoveAll(delegate(string k)
+            {
+                return string.Equals(k, key, StringComparison.OrdinalIgnoreCase);
+            });
+            if (muted) list.Add(key);
+            MutedSessions = list.ToArray();
+        }
+
+        private static string MuteKey(SessionInfo s)
+        {
+            return (s.Provider ?? "").ToLowerInvariant() + ":" + s.SessionId;
+        }
         public double Opacity = 1.0;
         public bool StartMinimized;
 
@@ -182,6 +215,11 @@ namespace ClaudeTrafficLight
                 s.AutoCheckUpdate = Json.Bool(d, "autoCheckUpdate", s.AutoCheckUpdate);
                 s.UpdateCheckHours = (int)Json.Long(d, "updateCheckHours", s.UpdateCheckHours);
                 if (s.UpdateCheckHours < 1 || s.UpdateCheckHours > 24) s.UpdateCheckHours = 6;
+                s.MutedSessions = Strings(d, "mutedSessions");
+                s.UiScalePercent = (int)Json.Long(d, "uiScalePercent", s.UiScalePercent);
+                if (s.UiScalePercent != 0 && s.UiScalePercent != 100 && s.UiScalePercent != 125 &&
+                    s.UiScalePercent != 150 && s.UiScalePercent != 175 && s.UiScalePercent != 200)
+                    s.UiScalePercent = 0;
                 s.Opacity = Number(d, "opacity", s.Opacity);
                 s.StartMinimized = Json.Bool(d, "startMinimized", s.StartMinimized);
             }
@@ -214,6 +252,19 @@ namespace ClaudeTrafficLight
             catch { return null; }
         }
 
+        private static string[] Strings(Dictionary<string, object> d, string key)
+        {
+            object[] a = Json.List(d, key);
+            if (a == null) return new string[0];
+            List<string> list = new List<string>();
+            for (int i = 0; i < a.Length; i++)
+            {
+                string v = a[i] as string;
+                if (!string.IsNullOrEmpty(v)) list.Add(v);
+            }
+            return list.ToArray();
+        }
+
         public void Save()
         {
             try
@@ -244,6 +295,8 @@ namespace ClaudeTrafficLight
                 d["jumpHideHintShown"] = JumpHideHintShown;
                 d["autoCheckUpdate"] = AutoCheckUpdate;
                 d["updateCheckHours"] = UpdateCheckHours;
+                d["mutedSessions"] = MutedSessions;
+                d["uiScalePercent"] = UiScalePercent;
                 d["opacity"] = Opacity;
                 d["startMinimized"] = StartMinimized;
                 File.WriteAllText(Paths.SettingsFile, Json.Pretty(d), new System.Text.UTF8Encoding(false));

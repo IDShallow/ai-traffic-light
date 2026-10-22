@@ -29,7 +29,7 @@ namespace ClaudeTrafficLight
 
         public UpdateForm(UpdateInfo info)
         {
-            _scale = Ui.Scale;
+            _scale = Ui.Scale * Ui.ManualFactor;
             _fonts = Ui.Fonts(_scale);
 
             _info = info;
@@ -221,7 +221,7 @@ namespace ClaudeTrafficLight
         protected override void OnLoad(EventArgs e)
         {
             base.OnLoad(e);
-            float sc = Win32.DpiForWindow(Handle, DeviceDpi) / 96f;
+            float sc = Win32.DpiForWindow(Handle, DeviceDpi) / 96f * Ui.ManualFactor;
             if (Math.Abs(sc - _scale) > 0.01f)
             {
                 _scale = sc;
@@ -237,7 +237,7 @@ namespace ClaudeTrafficLight
                 int dpi = Win32.DpiOfWParam(m.WParam);
                 Win32.RECT r = Win32.RectOfLParam(m.LParam);
 
-                _scale = dpi / 96f;
+                _scale = dpi / 96f * Ui.ManualFactor;
                 if (_scale < 0.5f) _scale = 0.5f;
                 _fonts = Ui.Fonts(_scale);
                 ApplyBounds();

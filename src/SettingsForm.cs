@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
@@ -22,6 +23,11 @@ namespace ClaudeTrafficLight
         private UiFonts _fonts = Ui.Fonts(1f);
         private UpdateInfo _pending;
         private ComboBox _updateEvery;
+        private ComboBox _uiScale;
+        private Panel _scroll;
+        public event Action UiScaleChanged;
+        private readonly List<SessionInfo> _sessions;
+        private readonly Func<SessionInfo, string> _nameProvider;
 
         /// <summary>手动检查发现了新版本：通知主窗口点红点。</summary>
         public event Action<UpdateInfo> UpdateFound;
@@ -56,12 +62,27 @@ namespace ClaudeTrafficLight
         protected override void OnLoad(EventArgs e)
         {
             base.OnLoad(e);
-            float sc = Win32.DpiForWindow(Handle, DeviceDpi) / 96f;
+            float sc = Win32.DpiForWindow(Handle, DeviceDpi) / 96f * Ui.ManualFactor;
             if (Math.Abs(sc - _scale) > 0.01f)
             {
                 SetScale(sc);
                 Rebuild();
             }
+            FitToScreen();
+        }
+
+        /// <summary>窗口比屏幕还高时缩小窗口（内容由滚动面板兜住）。</summary>
+        private void FitToScreen()
+        {
+            try
+            {
+                Rectangle wa = Screen.FromHandle(Handle).WorkingArea;
+                int maxH = wa.Height - Px(16);
+                if (Height > maxH) Height = Math.Max(Px(240), maxH);
+                if (Top + Height > wa.Bottom) Top = wa.Bottom - Height;
+                if (Top < wa.Top) Top = wa.Top;
+            }
+            catch { }
         }
 
         protected override void WndProc(ref Message m)
@@ -71,9 +92,10 @@ namespace ClaudeTrafficLight
                 int dpi = Win32.DpiOfWParam(m.WParam);
                 Win32.RECT r = Win32.RectOfLParam(m.LParam);
 
-                SetScale(dpi / 96f);
+                SetScale(dpi / 96f * Ui.ManualFactor);
                 Rebuild();
                 Bounds = new Rectangle(r.Left, r.Top, r.Right - r.Left, r.Bottom - r.Top);
+                FitToScreen();
                 Log.Write("settings dpi -> " + dpi + " size=" + Width + "x" + Height);
 
                 m.Result = IntPtr.Zero;
@@ -82,11 +104,14 @@ namespace ClaudeTrafficLight
             base.WndProc(ref m);
         }
 
-        public SettingsForm(AppSettings settings, UpdateInfo pending)
+        public SettingsForm(AppSettings settings, UpdateInfo pending,
+                            List<SessionInfo> sessions, Func<SessionInfo, string> nameProvider)
         {
             _settings = settings;
             _pending = pending;
-            _scale = Ui.Scale;
+            _sessions = sessions ?? new List<SessionInfo>();
+            _nameProvider = nameProvider;
+            _scale = Ui.Scale * Ui.ManualFactor;
             _fonts = Ui.Fonts(_scale);
 
             Text = "设置";
@@ -103,15 +128,22 @@ namespace ClaudeTrafficLight
 
         private void BuildUi()
         {
-            // 重建时先把旧的尺寸限制放开，否则新尺寸会被旧的 MaximumSize 夹回去
             MinimumSize = Size.Empty;
             MaximumSize = Size.Empty;
-            ClientSize = new Size(Px(470), Px(790));
-            MinimumSize = Size;
-            MaximumSize = Size;
+            ClientSize = new Size(Px(470), Px(820));
+
+            // 内容放进可滚动面板：手动放大时 1080p 也放得下
+            _scroll = new Panel();
+            _scroll.Location = new Point(0, HeaderH);
+            _scroll.Size = new Size(ClientSize.Width, ClientSize.Height - HeaderH);
+            _scroll.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+            _scroll.AutoScroll = true;
+            _scroll.AutoScrollMinSize = new Size(0, Px(820) - HeaderH);
+            _scroll.BackColor = Ui.Bg;
+            Controls.Add(_scroll);
 
             int x = Px(24);
-            int y = HeaderH + Px(12);
+            int y = Px(12);
             int step = Px(30);
 
             _checks[0] = AddCheck("窗口总在最前", x, y, _settings.TopMost, delegate { _settings.TopMost = _checks[0].Checked; Save(); });
@@ -143,7 +175,7 @@ namespace ClaudeTrafficLight
             jumpHint.ForeColor = Ui.TextFaint;
             jumpHint.BackColor = Ui.Bg;
             jumpHint.Location = new Point(x + Px(22), y);
-            Controls.Add(jumpHint);
+            _scroll.Controls.Add(jumpHint);
             y += Px(24);
             _checks[11] = AddCheck("自动检查更新", x, y, _settings.AutoCheckUpdate, delegate
             {
@@ -178,7 +210,45 @@ namespace ClaudeTrafficLight
                 _settings.UpdateCheckHours = opts[i];
                 Save();
             };
-            Controls.Add(_updateEvery);
+            _scroll.Controls.Add(_updateEvery);
+            y += step;
+
+            Label scaleLabel = new Label();
+            scaleLabel.Text = "界面缩放";
+            scaleLabel.AutoSize = true;
+            scaleLabel.Font = _fonts.F85;
+            scaleLabel.ForeColor = Ui.Text;
+            scaleLabel.BackColor = Ui.Bg;
+            scaleLabel.Location = new Point(x, y + Px(2));
+            _scroll.Controls.Add(scaleLabel);
+
+            _uiScale = new ComboBox();
+            _uiScale.DropDownStyle = ComboBoxStyle.DropDownList;
+            _uiScale.FlatStyle = FlatStyle.Flat;
+            _uiScale.Font = _fonts.F75;
+            _uiScale.BackColor = Ui.Bg2;
+            _uiScale.ForeColor = Ui.Text;
+            _uiScale.Items.AddRange(new object[]
+            {
+                "自动（跟随系统）", "100%", "125%", "150%", "175%", "200%"
+            });
+            int[] percents = new int[] { 0, 100, 125, 150, 175, 200 };
+            int psel = 0;
+            for (int i = 0; i < percents.Length; i++)
+                if (percents[i] == _settings.UiScalePercent) psel = i;
+            _uiScale.SelectedIndex = psel;
+            _uiScale.Location = new Point(x + Px(90), y - Px(2));
+            _uiScale.Width = Px(130);
+            _uiScale.SelectedIndexChanged += delegate
+            {
+                int[] opts = new int[] { 0, 100, 125, 150, 175, 200 };
+                int i = _uiScale.SelectedIndex;
+                if (i < 0 || i >= opts.Length) return;
+                _settings.UiScalePercent = opts[i];
+                Save();
+                if (UiScaleChanged != null) UiScaleChanged();
+            };
+            _scroll.Controls.Add(_uiScale);
             y += step;
 
             // ---- 版本 / 检查更新 ----
@@ -190,7 +260,7 @@ namespace ClaudeTrafficLight
             ver.ForeColor = Ui.TextDim;
             ver.BackColor = Ui.Bg;
             ver.Location = new Point(x, y + Px(5));
-            Controls.Add(ver);
+            _scroll.Controls.Add(ver);
 
             _updateBtn = new Button();
             _updateBtn.Text = "检查更新";
@@ -201,7 +271,7 @@ namespace ClaudeTrafficLight
             _updateBtn.BackColor = Ui.Bg3;
             _updateBtn.ForeColor = Ui.Text;
             _updateBtn.Click += delegate { CheckUpdates(); };
-            Controls.Add(_updateBtn);
+            _scroll.Controls.Add(_updateBtn);
 
             _updateStatus = new Label();
             _updateStatus.Text = "";
@@ -211,7 +281,7 @@ namespace ClaudeTrafficLight
             _updateStatus.BackColor = Ui.Bg;
             _updateStatus.Location = new Point(x, y + Px(28));
             _updateStatus.Size = new Size(ClientSize.Width - Px(48), Px(18));
-            Controls.Add(_updateStatus);
+            _scroll.Controls.Add(_updateStatus);
 
             // ---- 钩子 ----
             y += Px(56);
@@ -222,14 +292,14 @@ namespace ClaudeTrafficLight
             hookTitle.Font = _fonts.F95B;
             hookTitle.AutoSize = true;
             hookTitle.Location = new Point(x, y);
-            Controls.Add(hookTitle);
+            _scroll.Controls.Add(hookTitle);
             y += Px(26);
 
             _hookStatus = new Label();
             _hookStatus.AutoSize = true;
             _hookStatus.Font = _fonts.F8;
             _hookStatus.Location = new Point(x, y);
-            Controls.Add(_hookStatus);
+            _scroll.Controls.Add(_hookStatus);
 
             _hookBtn = new Button();
             _hookBtn.Text = "安装钩子";
@@ -240,7 +310,7 @@ namespace ClaudeTrafficLight
             _hookBtn.BackColor = Ui.Bg3;
             _hookBtn.ForeColor = Ui.Text;
             _hookBtn.Click += delegate { ToggleHooks(); };
-            Controls.Add(_hookBtn);
+            _scroll.Controls.Add(_hookBtn);
 
             y += Px(30);
             Label hint = new Label();
@@ -250,7 +320,7 @@ namespace ClaudeTrafficLight
             hint.ForeColor = Ui.TextFaint;
             hint.BackColor = Ui.Bg;
             hint.Location = new Point(x, y);
-            Controls.Add(hint);
+            _scroll.Controls.Add(hint);
 
             // ---- 监控来源 ----
             y += Px(84);
@@ -261,7 +331,18 @@ namespace ClaudeTrafficLight
             sources.ForeColor = Ui.TextFaint;
             sources.BackColor = Ui.Bg;
             sources.Location = new Point(x, y);
-            Controls.Add(sources);
+            _scroll.Controls.Add(sources);
+
+            Button pick = new Button();
+            pick.Text = "选择监控的对话…";
+            pick.Size = new Size(Px(150), Px(24));
+            pick.Location = new Point(ClientSize.Width - Px(24) - pick.Width, y - Px(4));
+            pick.FlatStyle = FlatStyle.Flat;
+            pick.FlatAppearance.BorderColor = Ui.Line;
+            pick.BackColor = Ui.Bg3;
+            pick.ForeColor = Ui.Text;
+            pick.Click += delegate { PickSessions(); };
+            _scroll.Controls.Add(pick);
             y += Px(24);
 
             _checks[12] = AddCheck("Claude Code", x, y, _settings.MonitorClaude,
@@ -274,7 +355,7 @@ namespace ClaudeTrafficLight
             Button openDir = new Button();
             openDir.Text = "打开配置目录";
             openDir.Size = new Size(Px(110), Px(30));
-            openDir.Location = new Point(x, ClientSize.Height - Px(50));
+            openDir.Location = new Point(x, Px(820) - HeaderH - Px(50));
             openDir.FlatStyle = FlatStyle.Flat;
             openDir.FlatAppearance.BorderColor = Ui.Line;
             openDir.BackColor = Ui.Bg3;
@@ -288,18 +369,18 @@ namespace ClaudeTrafficLight
                 }
                 catch { }
             };
-            Controls.Add(openDir);
+            _scroll.Controls.Add(openDir);
 
             Button close = new Button();
             close.Text = "关闭";
             close.Size = new Size(Px(86), Px(30));
-            close.Location = new Point(ClientSize.Width - Px(24) - close.Width, ClientSize.Height - Px(50));
+            close.Location = new Point(ClientSize.Width - Px(24) - close.Width, Px(820) - HeaderH - Px(50));
             close.FlatStyle = FlatStyle.Flat;
             close.FlatAppearance.BorderColor = Ui.Line;
             close.BackColor = Ui.Bg3;
             close.ForeColor = Ui.Text;
             close.Click += delegate { Close(); };
-            Controls.Add(close);
+            _scroll.Controls.Add(close);
 
             UpdateHookStatus();
             ApplyPendingUpdate();
@@ -319,6 +400,14 @@ namespace ClaudeTrafficLight
             ApplyPendingUpdate();
         }
 
+        private void PickSessions()
+        {
+            using (SessionsForm f = new SessionsForm(_settings, _sessions, _nameProvider, _scale))
+            {
+                f.ShowDialog(this);
+            }
+        }
+
         private CheckBox AddCheck(string text, int x, int y, bool value, EventHandler changed)
         {
             CheckBox cb = new CheckBox();
@@ -331,7 +420,7 @@ namespace ClaudeTrafficLight
             cb.Location = new Point(x, y);
             cb.Checked = value;
             cb.CheckedChanged += changed;
-            Controls.Add(cb);
+            _scroll.Controls.Add(cb);
             return cb;
         }
 

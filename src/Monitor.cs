@@ -197,6 +197,7 @@ namespace ClaudeTrafficLight
                 }
 
                 SessState s = Compute(st, r, hook);
+                st.Info.Muted = _settings.IsMuted(st.Info);
                 ApplyState(st, s, hook, now);
             }
 
@@ -440,14 +441,14 @@ namespace ClaudeTrafficLight
                 }
                 else if (s == SessState.NeedsInput || s == SessState.Error)
                 {
-                    if (!first) st.Info.Unread = true;
+                    if (!first && !st.Info.Muted) st.Info.Unread = true;
                     if (!first) MaybeNotify(st, s, hook, now);
                 }
                 else if (s == SessState.Done)
                 {
                     if (!first && prev == SessState.Working)
                     {
-                        st.Info.Unread = true;
+                        if (!st.Info.Muted) st.Info.Unread = true;
                         MaybeNotify(st, s, hook, now);
                     }
                 }
@@ -471,6 +472,7 @@ namespace ClaudeTrafficLight
                 {
                     SessionInfo s = list[i];
                     string key = s.Provider + ":" + s.SessionId;
+                    s.Muted = _settings.IsMuted(s);
 
                     ExtState st;
                     if (!_extStates.TryGetValue(key, out st))
@@ -491,14 +493,14 @@ namespace ClaudeTrafficLight
                         }
                         else if (s.State == SessState.NeedsInput || s.State == SessState.Error)
                         {
-                            if (!first) st.Unread = true;
+                            if (!first && !s.Muted) st.Unread = true;
                             if (!first) NotifyExternal(s, now, st);
                         }
                         else if (s.State == SessState.Done)
                         {
                             if (!first && prev == SessState.Working)
                             {
-                                st.Unread = true;
+                                if (!s.Muted) st.Unread = true;
                                 NotifyExternal(s, now, st);
                             }
                         }
@@ -527,6 +529,7 @@ namespace ClaudeTrafficLight
 
         private void NotifyExternal(SessionInfo s, DateTime now, ExtState st)
         {
+            if (s.Muted) return;
             string kind = s.State == SessState.NeedsInput ? "needs" : (s.State == SessState.Error ? "error" : "done");
             if (st.LastKind == kind && (now - st.LastNotify).TotalSeconds < 20) return;
             st.LastKind = kind;
@@ -558,6 +561,7 @@ namespace ClaudeTrafficLight
 
         private void MaybeNotify(State st, SessState s, Dictionary<string, object> hook, DateTime now)
         {
+            if (st.Info.Muted) return;
             string kind = s == SessState.NeedsInput ? "needs" : (s == SessState.Error ? "error" : "done");
             if (st.LastNotifyKind == kind && (now - st.LastNotify).TotalSeconds < 20) return;
             st.LastNotifyKind = kind;
@@ -779,7 +783,9 @@ namespace ClaudeTrafficLight
             b.TodoDone = a.TodoDone;
             b.TodoTotal = a.TodoTotal;
             b.LastActivity = a.LastActivity;
+            b.LastPromptAt = a.LastPromptAt;
             b.FirstSeen = a.FirstSeen;
+            b.Muted = a.Muted;
             b.TranscriptPath = a.TranscriptPath;
             b.HookEvent = a.HookEvent;
             b.HookMessage = a.HookMessage;

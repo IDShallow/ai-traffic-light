@@ -34,7 +34,7 @@ namespace ClaudeTrafficLight
         {
             _settings = settings;
             _anchor = anchor;
-            _scale = Ui.Scale;
+            _scale = Ui.Scale * Ui.ManualFactor;
             _fonts = Ui.Fonts(_scale);
             _pad = Px(8);
             _gap = Px(6);
@@ -88,7 +88,7 @@ namespace ClaudeTrafficLight
             base.OnLoad(e);
             // 建立窗口后才能拿到所在显示器的 DPI
             int dpi = Win32.DpiForWindow(Handle, DeviceDpi);
-            SetScale(dpi / 96f);
+            SetScale(dpi / 96f * Ui.ManualFactor);
             EnsureOnScreen();
             Log.Write("overview dpi init=" + dpi + " scale=" + _scale.ToString("0.00"));
         }
@@ -100,7 +100,7 @@ namespace ClaudeTrafficLight
                 int dpi = Win32.DpiOfWParam(m.WParam);
                 Win32.RECT r = Win32.RectOfLParam(m.LParam);
 
-                SetScale(dpi / 96f);
+                SetScale(dpi / 96f * Ui.ManualFactor);
                 Location = new Point(r.Left, r.Top);
                 EnsureOnScreen();
                 Invalidate();
@@ -110,6 +110,15 @@ namespace ClaudeTrafficLight
                 return;
             }
             base.WndProc(ref m);
+        }
+
+        /// <summary>设置里改了界面缩放：按当前显示器 DPI 重算尺寸。</summary>
+        public void ApplyUiScale()
+        {
+            int dpi = Win32.DpiForWindow(Handle, DeviceDpi);
+            SetScale(dpi / 96f * Ui.ManualFactor);
+            EnsureOnScreen();
+            Invalidate();
         }
 
         private void EnsureOnScreen()

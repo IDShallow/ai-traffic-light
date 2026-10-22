@@ -56,9 +56,30 @@ namespace ClaudeTrafficLight
             if (_list != null) _list.SetScale(scale, _fonts);
         }
 
+        /// <summary>设置里改了界面缩放：按当前显示器 DPI 重算，并等比例改窗口大小。</summary>
+        private void ApplyUiScale()
+        {
+            int dpi = Win32.DpiForWindow(Handle, DeviceDpi);
+            float target = dpi / 96f * Ui.ManualFactor;
+            if (Math.Abs(target - _scale) < 0.01f) return;
+
+            float ratio = target / _scale;
+            // 先按旧尺寸算好新尺寸：SetScale 会把 MinimumSize 抬到新比例，
+            // 直接把 Width 乘比例会撞上刚抬高的下限（被夹一次再乘一次）。
+            int newW = (int)Math.Round(Width * ratio);
+            int newH = (int)Math.Round(Height * ratio);
+            SetScale(target);
+            Size = new Size(Math.Max(Px(340), newW), Math.Max(Px(300), newH));
+            EnsureOnScreen();
+            LayoutParts();
+            Invalidate(true);
+
+            if (_overview != null && !_overview.IsDisposed) _overview.ApplyUiScale();
+        }
+
         public MainForm(AppSettings settings, Monitor monitor, bool startHidden)
         {
-            _scale = Ui.Scale;
+            _scale = Ui.Scale * Ui.ManualFactor;
             _fonts = Ui.Fonts(_scale);
 
             _settings = settings;
@@ -223,7 +244,7 @@ namespace ClaudeTrafficLight
 
             // 窗口建出来后才知道自己在哪块屏上：按该屏 DPI 重算缩放与（保存的）尺寸
             int dpi = Win32.DpiForWindow(Handle, DeviceDpi);
-            SetScale(dpi / 96f);
+            SetScale(dpi / 96f * Ui.ManualFactor);
             if (_settings.MainSize != null && _settings.MainSize.Length == 2 &&
                 _settings.MainDpi > 0 && _settings.MainDpi != dpi)
             {
@@ -243,7 +264,7 @@ namespace ClaudeTrafficLight
                 int dpi = Win32.DpiOfWParam(m.WParam);
                 Win32.RECT r = Win32.RectOfLParam(m.LParam);
 
-                SetScale(dpi / 96f);
+                SetScale(dpi / 96f * Ui.ManualFactor);
                 Bounds = new Rectangle(r.Left, r.Top,
                     Math.Max(Px(340), r.Right - r.Left),
                     Math.Max(Px(300), r.Bottom - r.Top));
@@ -425,6 +446,7 @@ namespace ClaudeTrafficLight
             for (int i = 0; i < snap.Count; i++)
             {
                 SessionInfo s = snap[i];
+                if (_settings.IsMuted(s)) continue;
                 if (s.State == SessState.NeedsInput || s.State == SessState.Error ||
                     (s.Unread && s.State == SessState.Done))
                 {
@@ -455,7 +477,7 @@ namespace ClaudeTrafficLight
             for (int i = 0; i < snap.Count; i++)
             {
                 SessionInfo s = snap[i];
-                if (!s.Alive) continue;
+                if (!s.Alive || _settings.IsMuted(s)) continue;
                 total++;
                 if (s.State == SessState.NeedsInput) needs++;
                 else if (s.State == SessState.Working) working++;
@@ -533,7 +555,7 @@ namespace ClaudeTrafficLight
             if (_monitor.Version != _lastVersion)
             {
                 _lastVersion = _monitor.Version;
-                List<SessionInfo> snap = _monitor.Snapshot;
+                List<SessionInfo> snap = VisibleSessions(_monitor.Snapshot);
                 _list.Items = snap;
                 if (_overview != null && _overview.Visible) _overview.SetItems(snap);
                 UpdateTray(snap);
@@ -542,6 +564,17 @@ namespace ClaudeTrafficLight
 
             MonitorEvent ev;
             while (_monitor.TryDequeue(out ev)) HandleEvent(ev);
+        }
+
+        /// <summary>用户在设置里取消勾选的会话不显示、不计数。</summary>
+        private List<SessionInfo> VisibleSessions(List<SessionInfo> all)
+        {
+            List<SessionInfo> list = new List<SessionInfo>(all.Count);
+            for (int i = 0; i < all.Count; i++)
+            {
+                if (!_settings.IsMuted(all[i])) list.Add(all[i]);
+            }
+            return list;
         }
 
         private void UpdateTray(List<SessionInfo> snap)
@@ -970,13 +1003,19 @@ namespace ClaudeTrafficLight
 
         private void OpenSettings()
         {
-            using (SettingsForm f = new SettingsForm(_settings, _pendingUpdate))
+            using (SettingsForm f = new SettingsForm(_settings, _pendingUpdate,
+                                                      _monitor.Snapshot, NameFor))
             {
                 _settingsForm = f;
                 f.UpdateFound += delegate(UpdateInfo info)
                 {
                     _pendingUpdate = info;
                     Invalidate(new Rectangle(0, 0, Width, HeaderH));
+                };
+                f.UiScaleChanged += delegate
+                {
+                    Ui.ManualScalePercent = _settings.UiScalePercent;
+                    ApplyUiScale();
                 };
                 f.ShowDialog(this);
                 _settingsForm = null;
@@ -1041,6 +1080,12 @@ namespace ClaudeTrafficLight
             TopMost = _settings.TopMost;
             if (_overview != null) _overview.TopMost = _settings.TopMost;
             ApplyAutoStart(_settings.AutoStart);
+
+            if (_settings.UiScalePercent != Ui.ManualScalePercent)
+            {
+                Ui.ManualScalePercent = _settings.UiScalePercent;
+                ApplyUiScale();
+            }
 
             if (_updateCheck != null)
             {
@@ -1118,7 +1163,7 @@ namespace ClaudeTrafficLight
                     };
                 }
                 _overview.TopMost = _settings.TopMost;
-                _overview.SetItems(_monitor.Snapshot);
+                _overview.SetItems(VisibleSessions(_monitor.Snapshot));
                 _overview.SetSelected(_list.SelectedId);
                 _overview.Show();
                 _overview.BringToFront();
