@@ -11,7 +11,7 @@ namespace ClaudeTrafficLight
     internal sealed class SettingsForm : Form
     {
         private readonly AppSettings _settings;
-        private readonly CheckBox[] _checks = new CheckBox[14];
+        private readonly CheckBox[] _checks = new CheckBox[15];
         private Label _hookStatus;
         private Button _hookBtn;
         private Label _updateStatus;
@@ -20,6 +20,11 @@ namespace ClaudeTrafficLight
         private bool _hotClose;
         private float _scale = 1f;
         private UiFonts _fonts = Ui.Fonts(1f);
+        private UpdateInfo _pending;
+        private ComboBox _updateEvery;
+
+        /// <summary>手动检查发现了新版本：通知主窗口点红点。</summary>
+        public event Action<UpdateInfo> UpdateFound;
 
         private int Px(int v) { return (int)Math.Round(v * _scale); }
 
@@ -77,9 +82,10 @@ namespace ClaudeTrafficLight
             base.WndProc(ref m);
         }
 
-        public SettingsForm(AppSettings settings)
+        public SettingsForm(AppSettings settings, UpdateInfo pending)
         {
             _settings = settings;
+            _pending = pending;
             _scale = Ui.Scale;
             _fonts = Ui.Fonts(_scale);
 
@@ -100,7 +106,7 @@ namespace ClaudeTrafficLight
             // 重建时先把旧的尺寸限制放开，否则新尺寸会被旧的 MaximumSize 夹回去
             MinimumSize = Size.Empty;
             MaximumSize = Size.Empty;
-            ClientSize = new Size(Px(470), Px(740));
+            ClientSize = new Size(Px(470), Px(790));
             MinimumSize = Size;
             MaximumSize = Size;
 
@@ -138,6 +144,42 @@ namespace ClaudeTrafficLight
             jumpHint.BackColor = Ui.Bg;
             jumpHint.Location = new Point(x + Px(22), y);
             Controls.Add(jumpHint);
+            y += Px(24);
+            _checks[11] = AddCheck("自动检查更新", x, y, _settings.AutoCheckUpdate, delegate
+            {
+                _settings.AutoCheckUpdate = _checks[11].Checked;
+                Save();
+                if (_updateEvery != null) _updateEvery.Enabled = _checks[11].Checked;
+            });
+
+            _updateEvery = new ComboBox();
+            _updateEvery.DropDownStyle = ComboBoxStyle.DropDownList;
+            _updateEvery.FlatStyle = FlatStyle.Flat;
+            _updateEvery.Font = _fonts.F75;
+            _updateEvery.BackColor = Ui.Bg2;
+            _updateEvery.ForeColor = Ui.Text;
+            _updateEvery.Items.AddRange(new object[]
+            {
+                "每 1 小时", "每 3 小时", "每 6 小时", "每 12 小时", "每 24 小时"
+            });
+            int[] hours = new int[] { 1, 3, 6, 12, 24 };
+            int sel = 2;
+            for (int i = 0; i < hours.Length; i++)
+                if (hours[i] == _settings.UpdateCheckHours) sel = i;
+            _updateEvery.SelectedIndex = sel;
+            _updateEvery.Location = new Point(x + Px(130), y - Px(2));
+            _updateEvery.Width = Px(110);
+            _updateEvery.Enabled = _settings.AutoCheckUpdate;
+            _updateEvery.SelectedIndexChanged += delegate
+            {
+                int[] opts = new int[] { 1, 3, 6, 12, 24 };
+                int i = _updateEvery.SelectedIndex;
+                if (i < 0 || i >= opts.Length) return;
+                _settings.UpdateCheckHours = opts[i];
+                Save();
+            };
+            Controls.Add(_updateEvery);
+            y += step;
 
             // ---- 版本 / 检查更新 ----
             y += Px(20);
@@ -222,12 +264,12 @@ namespace ClaudeTrafficLight
             Controls.Add(sources);
             y += Px(24);
 
-            _checks[11] = AddCheck("Claude Code", x, y, _settings.MonitorClaude,
-                delegate { _settings.MonitorClaude = _checks[11].Checked; Save(); });
-            _checks[12] = AddCheck("Codex", x + Px(106), y, _settings.MonitorCodex,
-                delegate { _settings.MonitorCodex = _checks[12].Checked; Save(); });
-            _checks[13] = AddCheck("DeepSeek Harness", x + Px(186), y, _settings.MonitorDsh,
-                delegate { _settings.MonitorDsh = _checks[13].Checked; Save(); });
+            _checks[12] = AddCheck("Claude Code", x, y, _settings.MonitorClaude,
+                delegate { _settings.MonitorClaude = _checks[12].Checked; Save(); });
+            _checks[13] = AddCheck("Codex", x + Px(106), y, _settings.MonitorCodex,
+                delegate { _settings.MonitorCodex = _checks[13].Checked; Save(); });
+            _checks[14] = AddCheck("DeepSeek Harness", x + Px(186), y, _settings.MonitorDsh,
+                delegate { _settings.MonitorDsh = _checks[14].Checked; Save(); });
 
             Button openDir = new Button();
             openDir.Text = "打开配置目录";
@@ -260,6 +302,21 @@ namespace ClaudeTrafficLight
             Controls.Add(close);
 
             UpdateHookStatus();
+            ApplyPendingUpdate();
+        }
+
+        private void ApplyPendingUpdate()
+        {
+            if (_pending == null || _updateStatus == null) return;
+            _updateStatus.ForeColor = Ui.Amber;
+            _updateStatus.Text = "发现新版本 v" + _pending.Version + "，点「检查更新」安装";
+        }
+
+        /// <summary>后台检查完成时由主窗口调用。</summary>
+        public void SetPendingUpdate(UpdateInfo info)
+        {
+            _pending = info;
+            ApplyPendingUpdate();
         }
 
         private CheckBox AddCheck(string text, int x, int y, bool value, EventHandler changed)
@@ -378,6 +435,7 @@ namespace ClaudeTrafficLight
 
             _updateStatus.ForeColor = Ui.Amber;
             _updateStatus.Text = "发现新版本 v" + info.Version;
+            if (UpdateFound != null) UpdateFound(info);
 
             string notes = string.IsNullOrEmpty(info.Notes) ? "" : "\n\n" + info.Notes;
             DialogResult r = MessageBox.Show(this,

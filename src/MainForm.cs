@@ -30,6 +30,11 @@ namespace ClaudeTrafficLight
         private int _hotHeader;
         private float _scale = 1f;
         private UiFonts _fonts = Ui.Fonts(1f);
+        private UpdateInfo _pendingUpdate;
+        private Timer _updateCheck;
+        private SettingsForm _settingsForm;
+        private bool _checkingUpdate;
+        private bool _firstUpdateCheckDone;
 
         private Rectangle _btnOverview, _btnSettings, _btnMin, _btnClose;
         private ToolStripMenuItem _miPrivacy;
@@ -116,6 +121,19 @@ namespace ClaudeTrafficLight
             _pulse.Interval = 160;
             _pulse.Tick += OnPulseTick;
             _pulse.Start();
+
+            // 启动后 5 秒查一次更新，之后按设置里的间隔（1/3/6/12/24 小时）；可关
+            _updateCheck = new Timer();
+            _updateCheck.Interval = 5000;
+            _updateCheck.Tick += delegate
+            {
+                _updateCheck.Stop();
+                _firstUpdateCheckDone = true;
+                _updateCheck.Interval = UpdateIntervalMs();
+                _updateCheck.Start();
+                CheckUpdatesQuiet();
+            };
+            if (settings.AutoCheckUpdate) _updateCheck.Start();
 
             // 拖动/改大小之后延迟落盘，避免每移动一个像素就写一次文件
             _saveTimer = new Timer();
@@ -336,6 +354,18 @@ namespace ClaudeTrafficLight
             DrawHeaderButton(g, _btnSettings, "设置", _hotHeader == 2);
             DrawHeaderButton(g, _btnMin, "—", _hotHeader == 3);
             DrawHeaderButton(g, _btnClose, "×", _hotHeader == 4);
+
+            // 有可用更新：设置按钮右上角一个红点
+            if (_pendingUpdate != null)
+            {
+                int d = Px(7);
+                int x = _btnSettings.Right - d;
+                int y = _btnSettings.Top - Px(1);
+                using (SolidBrush b = new SolidBrush(Ui.Bg))
+                    g.FillEllipse(b, x - Px(1), y - Px(1), d + Px(2), d + Px(2));
+                using (SolidBrush b = new SolidBrush(Ui.Red))
+                    g.FillEllipse(b, x, y, d, d);
+            }
 
             using (Pen p = new Pen(Color.FromArgb(255, 40, 45, 55), 1f))
                 g.DrawLine(p, 0, HeaderH - 1, Width, HeaderH - 1);
@@ -673,6 +703,26 @@ namespace ClaudeTrafficLight
                 }
             }
 
+            // DeepSeek Harness：在左侧会话列表里按标题选中（同名会话用最近提问时间区分）。
+            // UIA 首次要等 Chromium 建辅助功能树，放到后台线程，成功后再收主窗。
+            if (string.Equals(s.Provider, "dsh", StringComparison.OrdinalIgnoreCase))
+            {
+                DateTime ago = s.LastPromptAt != DateTime.MinValue ? s.LastPromptAt : s.LastActivity;
+                if (hwnd != IntPtr.Zero && !string.IsNullOrEmpty(s.Title))
+                {
+                    IntPtr dshWindow = hwnd;
+                    string dshTitle = s.Title;
+                    System.Threading.Thread t = new System.Threading.Thread(delegate()
+                    {
+                        if (!DshFocus.SelectSession(dshWindow, dshTitle, ago)) return;
+                        try { BeginInvoke((MethodInvoker)delegate { AfterJump(); }); } catch { }
+                    });
+                    t.IsBackground = true;
+                    t.Start();
+                    return;
+                }
+            }
+
             // Claude 桌面端：点侧边栏里对应的会话条目，直接切过去
             if (!isVscode && !string.IsNullOrEmpty(s.HostSessionId))
             {
@@ -920,12 +970,70 @@ namespace ClaudeTrafficLight
 
         private void OpenSettings()
         {
-            using (SettingsForm f = new SettingsForm(_settings))
+            using (SettingsForm f = new SettingsForm(_settings, _pendingUpdate))
             {
+                _settingsForm = f;
+                f.UpdateFound += delegate(UpdateInfo info)
+                {
+                    _pendingUpdate = info;
+                    Invalidate(new Rectangle(0, 0, Width, HeaderH));
+                };
                 f.ShowDialog(this);
+                _settingsForm = null;
             }
             ApplySettings();
             _settings.Save();
+        }
+
+        /// <summary>后台静默检查更新：有新版就在设置按钮上点红点，设置页里也会提示。</summary>
+        private int UpdateIntervalMs()
+        {
+            int h = _settings.UpdateCheckHours;
+            if (h < 1) h = 6;
+            if (h > 24) h = 24;
+            return h * 60 * 60 * 1000;
+        }
+
+        private void CheckUpdatesQuiet()
+        {
+            if (_checkingUpdate) return;
+            _checkingUpdate = true;
+
+            System.Threading.Thread t = new System.Threading.Thread(delegate()
+            {
+                UpdateInfo info = null;
+                bool ok = false;
+                try
+                {
+                    info = UpdateChecker.Check();
+                    ok = true;
+                }
+                catch (Exception ex)
+                {
+                    Log.Write("update check failed: " + ex.Message);
+                }
+
+                try
+                {
+                    BeginInvoke((MethodInvoker)delegate
+                    {
+                        _checkingUpdate = false;
+                        if (!ok) return; // 网络失败：保留已有的红点状态
+
+                        bool changed = (info == null) != (_pendingUpdate == null) ||
+                                       (info != null && _pendingUpdate != null &&
+                                        info.Version != _pendingUpdate.Version);
+                        _pendingUpdate = info;
+                        if (_settingsForm != null && !_settingsForm.IsDisposed && info != null)
+                            _settingsForm.SetPendingUpdate(info);
+                        if (changed) Invalidate(new Rectangle(0, 0, Width, HeaderH));
+                        if (info != null) Log.Write("update available: " + info.Version);
+                    });
+                }
+                catch { }
+            });
+            t.IsBackground = true;
+            t.Start();
         }
 
         public void ApplySettings()
@@ -933,6 +1041,23 @@ namespace ClaudeTrafficLight
             TopMost = _settings.TopMost;
             if (_overview != null) _overview.TopMost = _settings.TopMost;
             ApplyAutoStart(_settings.AutoStart);
+
+            if (_updateCheck != null)
+            {
+                if (_settings.AutoCheckUpdate && !_updateCheck.Enabled)
+                {
+                    _updateCheck.Interval = 5000;
+                    _updateCheck.Start();
+                }
+                else if (!_settings.AutoCheckUpdate)
+                {
+                    _updateCheck.Stop();
+                }
+                else if (_firstUpdateCheckDone)
+                {
+                    _updateCheck.Interval = UpdateIntervalMs();
+                }
+            }
 
             if (_list != null)
             {

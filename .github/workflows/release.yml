@@ -23,13 +23,18 @@ jobs:
         run: |
           $version = "${{ github.ref_name }}".TrimStart('v')
           $setup = "dist/ClaudeTrafficLightSetup.exe"
+          $exe = "dist/ClaudeTrafficLight.exe"
           $hash = (Get-FileHash -Algorithm SHA256 -Path $setup).Hash.ToLower()
+          $exeHash = (Get-FileHash -Algorithm SHA256 -Path $exe).Hash.ToLower()
           $url = "https://github.com/${{ github.repository }}/releases/latest/download/ClaudeTrafficLightSetup.exe"
+          $exeUrl = "https://github.com/${{ github.repository }}/releases/latest/download/ClaudeTrafficLight.exe"
           $notes = "See release notes: https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}"
           $manifest = [ordered]@{
             version   = $version
             url       = $url
             sha256    = $hash
+            exeUrl    = $exeUrl
+            exeSha256 = $exeHash
             notes     = $notes
             mandatory = $false
           }

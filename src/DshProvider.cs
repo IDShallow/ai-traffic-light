@@ -31,6 +31,7 @@ namespace ClaudeTrafficLight
             public string LastAssistant = "";
             public string ErrorText = "";
             public string WaitingFor = "";
+            public DateTime LastPromptAt = DateTime.MinValue;
             public SessState State = SessState.Done;
         }
 
@@ -112,6 +113,7 @@ namespace ClaudeTrafficLight
                 s.LastAssistant = p.LastAssistant;
                 s.ErrorText = p.ErrorText;
                 s.LastActivity = mt;
+                s.LastPromptAt = p.LastPromptAt;
                 s.StateSince = mt;
                 s.TranscriptPath = f;
                 list.Add(s);
@@ -172,6 +174,15 @@ namespace ClaudeTrafficLight
                 if (rows == null) return p;
 
                 p.Title = RowString(rows, "title");
+
+                Dictionary<string, object> meta = RowMap(rows, "sessionListMetadata");
+                if (meta != null)
+                {
+                    long lastPromptMs = Json.Long(meta, "lastPromptAt", 0);
+                    if (lastPromptMs > 0)
+                        p.LastPromptAt = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+                            .AddMilliseconds(lastPromptMs);
+                }
 
                 Dictionary<string, object> outline = RowMap(rows, "turnOutline");
                 object[] turns = Json.List(outline, "turns");

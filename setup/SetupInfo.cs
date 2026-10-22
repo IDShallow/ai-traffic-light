@@ -4,5 +4,5 @@ using System.Reflection;
 [assembly: AssemblyDescription("Claude 状态红绿灯 安装 / 更新 / 卸载")]
 [assembly: AssemblyProduct("Claude 状态红绿灯")]
 [assembly: AssemblyCompany("IDShallow")]
-[assembly: AssemblyVersion("0.5.4.0")]
-[assembly: AssemblyFileVersion("0.5.4.0")]
+[assembly: AssemblyVersion("0.5.5.0")]
+[assembly: AssemblyFileVersion("0.5.5.0")]

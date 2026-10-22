@@ -95,7 +95,7 @@ namespace ClaudeTrafficLight
             {
                 try
                 {
-                    string path = UpdateChecker.Download(_info, delegate(int pct)
+                    Action<int> report = delegate(int pct)
                     {
                         try
                         {
@@ -108,10 +108,15 @@ namespace ClaudeTrafficLight
                             });
                         }
                         catch { }
-                    });
+                    };
+
+                    bool portable = UpdateChecker.IsPortableInstall() && !string.IsNullOrEmpty(_info.ExeUrl);
+                    string path = portable
+                        ? UpdateChecker.DownloadExe(_info, report)
+                        : UpdateChecker.Download(_info, report);
 
                     if (IsDisposed) return;
-                    BeginInvoke((MethodInvoker)delegate { Launch(path); });
+                    BeginInvoke((MethodInvoker)delegate { Launch(path, portable); });
                 }
                 catch (Exception ex)
                 {
@@ -134,32 +139,34 @@ namespace ClaudeTrafficLight
             t.Start();
         }
 
-        private void Launch(string setupPath)
+        private void Launch(string path, bool portable)
         {
             _title.Text = "正在安装…";
-            _status.Text = "程序会退出，安装完成后自动重新打开。";
+            _status.Text = portable
+                ? "程序会退出并就地替换，然后自动重新打开。"
+                : "程序会退出，安装完成后自动重新打开。";
             _bar.Value = 100;
 
             try
             {
                 string dir = Path.GetDirectoryName(Paths.ExePath);
-                ProcessStartInfo psi = new ProcessStartInfo(
-                    setupPath,
-                    "--silent --update --restart --dir=\"" + dir + "\"");
+                ProcessStartInfo psi = portable
+                    ? new ProcessStartInfo(path, "--apply-update \"" + Paths.ExePath + "\"")
+                    : new ProcessStartInfo(path, "--silent --update --restart --dir=\"" + dir + "\"");
                 psi.UseShellExecute = true;
                 psi.WorkingDirectory = Path.GetTempPath();
-                if (NeedsElevation(dir) && !IsAdmin()) psi.Verb = "runas";
+                if (!portable && NeedsElevation(dir) && !IsAdmin()) psi.Verb = "runas";
 
                 Process.Start(psi);
-                Log.Write("update launched: " + setupPath + " -> " + dir);
+                Log.Write("update launched: " + path + " -> " + dir + (portable ? " (portable)" : ""));
                 Application.DoEvents();
                 Environment.Exit(0);
             }
             catch (Exception ex)
             {
                 _busy = false;
-                _title.Text = "无法启动安装程序";
-                _status.Text = ex.Message + "\n可以手动运行：" + setupPath;
+                _title.Text = portable ? "无法启动更新程序" : "无法启动安装程序";
+                _status.Text = ex.Message + "\n可以手动运行：" + path;
                 _status.ForeColor = Ui.Red;
                 _close.Enabled = true;
             }

@@ -66,7 +66,7 @@ namespace ClaudeTrafficLight
             }
         }
 
-        private static IntPtr FindRenderer(IntPtr mainWindow)
+        internal static IntPtr FindRenderer(IntPtr mainWindow)
         {
             IntPtr found = IntPtr.Zero;
             try

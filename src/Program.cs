@@ -26,6 +26,12 @@ namespace ClaudeTrafficLight
                 return;
             }
 
+            if (HasArg(args, "--apply-update"))
+            {
+                ApplyUpdate(ArgValue(args, "--apply-update"));
+                return;
+            }
+
             if (HasArg(args, "--quit"))
             {
                 SignalQuit();
@@ -124,6 +130,73 @@ namespace ClaudeTrafficLight
                 if (string.Equals(args[i], name, StringComparison.OrdinalIgnoreCase)) return true;
             }
             return false;
+        }
+
+        private static string ArgValue(string[] args, string name)
+        {
+            for (int i = 0; i < args.Length; i++)
+            {
+                if (string.Equals(args[i], name, StringComparison.OrdinalIgnoreCase))
+                    return i + 1 < args.Length ? args[i + 1] : "";
+                if (args[i].StartsWith(name + "=", StringComparison.OrdinalIgnoreCase))
+                    return args[i].Substring(name.Length + 1);
+            }
+            return "";
+        }
+
+        /// <summary>
+        /// 免安装版自更新：当前进程就是刚下载的新 exe，把它覆盖到旧位置再启动。
+        /// 旧实例由 UpdateForm 退出；文件可能还被占用，所以重试一会儿。
+        /// </summary>
+        private static void ApplyUpdate(string target)
+        {
+            if (string.IsNullOrEmpty(target)) return;
+
+            bool ok = false;
+            Exception last = null;
+            for (int i = 0; i < 40; i++)
+            {
+                try
+                {
+                    File.Copy(Paths.ExePath, target, true);
+                    ok = true;
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    last = ex;
+                    Thread.Sleep(250);
+                }
+            }
+
+            if (ok)
+            {
+                Log.Write("portable update applied -> " + target);
+                try
+                {
+                    string dir = Path.GetDirectoryName(target);
+                    Process.Start(new ProcessStartInfo(target)
+                    {
+                        UseShellExecute = true,
+                        WorkingDirectory = dir
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Log.Write("portable update restart failed: " + ex.Message);
+                }
+            }
+            else
+            {
+                Log.Write("portable update failed -> " + target + " : " + (last == null ? "" : last.Message));
+                try
+                {
+                    MessageBox.Show("更新失败：无法写入\n" + target +
+                                    "\n\n可以手动把下载的新 exe 覆盖过去。",
+                        "更新失败", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+                catch { }
+            }
         }
 
         private static void SignalExisting()

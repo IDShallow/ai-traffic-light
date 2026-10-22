@@ -12,6 +12,9 @@ namespace ClaudeTrafficLight
         public string Version = "";
         public string Url = "";
         public string Sha256 = "";
+        /// <summary>免安装版：直接下载新的 ClaudeTrafficLight.exe（有就优先于安装包）。</summary>
+        public string ExeUrl = "";
+        public string ExeSha256 = "";
         public string Notes = "";
         public bool Mandatory;
     }
@@ -61,6 +64,8 @@ namespace ClaudeTrafficLight
             info.Version = Json.Str(d, "version");
             info.Url = Json.Str(d, "url");
             info.Sha256 = Json.Str(d, "sha256");
+            info.ExeUrl = Json.Str(d, "exeUrl");
+            info.ExeSha256 = Json.Str(d, "exeSha256");
             info.Notes = Json.Str(d, "notes");
             info.Mandatory = Json.Bool(d, "mandatory", false);
 
@@ -124,11 +129,44 @@ namespace ClaudeTrafficLight
         {
             if (info == null || string.IsNullOrEmpty(info.Url))
                 throw new Exception("没有下载地址");
+            return DownloadFile(info.Url, info.Sha256, AppInfo.SetupName, progress);
+        }
 
+        /// <summary>免安装版：下载新的程序本体（不含安装器）。</summary>
+        public static string DownloadExe(UpdateInfo info, Action<int> progress)
+        {
+            if (info == null || string.IsNullOrEmpty(info.ExeUrl))
+                throw new Exception("更新源没有给出免安装版下载地址");
+            return DownloadFile(info.ExeUrl, info.ExeSha256, "ClaudeTrafficLight.update.exe", progress);
+        }
+
+        /// <summary>当前 exe 不在安装器登记的位置（或没有登记）⇒ 免安装版。</summary>
+        public static bool IsPortableInstall()
+        {
+            try
+            {
+                using (Microsoft.Win32.RegistryKey k = Microsoft.Win32.Registry.CurrentUser
+                    .OpenSubKey(@"Software\ClaudeTrafficLight"))
+                {
+                    string dir = k == null ? null : k.GetValue("InstallDir") as string;
+                    if (string.IsNullOrEmpty(dir)) return true;
+
+                    string here = Path.GetDirectoryName(Paths.ExePath) ?? "";
+                    return !string.Equals(
+                        Path.GetFullPath(dir).TrimEnd('\\'),
+                        Path.GetFullPath(here).TrimEnd('\\'),
+                        StringComparison.OrdinalIgnoreCase);
+                }
+            }
+            catch { return true; }
+        }
+
+        private static string DownloadFile(string url, string sha, string fileName, Action<int> progress)
+        {
             EnableTls();
-            string path = Path.Combine(Path.GetTempPath(), AppInfo.SetupName);
+            string path = Path.Combine(Path.GetTempPath(), fileName);
 
-            HttpWebRequest req = (HttpWebRequest)WebRequest.Create(info.Url);
+            HttpWebRequest req = (HttpWebRequest)WebRequest.Create(url);
             req.Timeout = 20000;
             req.ReadWriteTimeout = 60000;
             req.UserAgent = "ClaudeTrafficLight/" + AppInfo.Version;
@@ -155,10 +193,10 @@ namespace ClaudeTrafficLight
                 }
             }
 
-            if (!string.IsNullOrEmpty(info.Sha256))
+            if (!string.IsNullOrEmpty(sha))
             {
                 string actual = Sha256File(path);
-                if (!string.Equals(actual, info.Sha256.Trim(), StringComparison.OrdinalIgnoreCase))
+                if (!string.Equals(actual, sha.Trim(), StringComparison.OrdinalIgnoreCase))
                 {
                     try { File.Delete(path); } catch { }
                     throw new Exception("下载文件的 SHA256 与更新源不一致，已丢弃");

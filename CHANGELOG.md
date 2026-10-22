@@ -3,6 +3,23 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [0.5.5] - 2026-10-22
+
+### Added
+
+- **免安装版自更新**：便携版不再调用安装器，直接下载新的 `ClaudeTrafficLight.exe` 就地替换
+  并重启——不写注册表、不建快捷方式、不产生 `uninstall.exe`。`latest.json` 新增
+  `exeUrl` / `exeSha256`；安装版仍走原来的安装器。
+- **新版本提示**：启动后 5 秒、之后按设置的间隔检查更新（1/3/6/12/24 小时，默认 6）；
+  有新版时主界面「设置」按钮右上角显示红点，设置页显示「发现新版本 vX」。
+  设置里新增「自动检查更新」开关和频率下拉框（默认开）。
+
+### Fixed
+
+- **DeepSeek Harness 跳转**：原来只把 DSH 窗口带到前台；现在通过 UIA
+  (`SelectionItemPattern`) 在左侧会话列表里选中对应会话。同名会话用
+  `sessionListMetadata.lastPromptAt`（界面上「N天」的依据）区分。
+
 ## [0.5.4] - 2026-10-22
 
 ### Fixed

@@ -49,6 +49,8 @@ namespace ClaudeTrafficLight
         public int TodoDone;
         public int TodoTotal;
         public DateTime LastActivity = DateTime.MinValue;
+        /// <summary>DSH：最后一次提问的时间（界面上的「N天」用的就是它，文件 mtime 不可靠）。</summary>
+        public DateTime LastPromptAt = DateTime.MinValue;
         public DateTime FirstSeen = DateTime.MinValue;
 
         public string TranscriptPath = "";
@@ -135,6 +137,10 @@ namespace ClaudeTrafficLight
         public bool HideAfterJump = true;
         /// <summary>是否已经提示过“跳转后收进托盘”的说明（只提示一次）。</summary>
         public bool JumpHideHintShown;
+        /// <summary>启动时/定期自动检查更新。</summary>
+        public bool AutoCheckUpdate = true;
+        /// <summary>自动检查间隔（小时）：1 / 3 / 6 / 12 / 24。</summary>
+        public int UpdateCheckHours = 6;
         public double Opacity = 1.0;
         public bool StartMinimized;
 
@@ -173,6 +179,9 @@ namespace ClaudeTrafficLight
                 s.MonitorDsh = Json.Bool(d, "monitorDsh", s.MonitorDsh);
                 s.HideAfterJump = Json.Bool(d, "hideAfterJump", s.HideAfterJump);
                 s.JumpHideHintShown = Json.Bool(d, "jumpHideHintShown", s.JumpHideHintShown);
+                s.AutoCheckUpdate = Json.Bool(d, "autoCheckUpdate", s.AutoCheckUpdate);
+                s.UpdateCheckHours = (int)Json.Long(d, "updateCheckHours", s.UpdateCheckHours);
+                if (s.UpdateCheckHours < 1 || s.UpdateCheckHours > 24) s.UpdateCheckHours = 6;
                 s.Opacity = Number(d, "opacity", s.Opacity);
                 s.StartMinimized = Json.Bool(d, "startMinimized", s.StartMinimized);
             }
@@ -233,6 +242,8 @@ namespace ClaudeTrafficLight
                 d["monitorDsh"] = MonitorDsh;
                 d["hideAfterJump"] = HideAfterJump;
                 d["jumpHideHintShown"] = JumpHideHintShown;
+                d["autoCheckUpdate"] = AutoCheckUpdate;
+                d["updateCheckHours"] = UpdateCheckHours;
                 d["opacity"] = Opacity;
                 d["startMinimized"] = StartMinimized;
                 File.WriteAllText(Paths.SettingsFile, Json.Pretty(d), new System.Text.UTF8Encoding(false));
