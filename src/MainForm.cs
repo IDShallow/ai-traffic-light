@@ -204,16 +204,18 @@ namespace ClaudeTrafficLight
             base.OnLoad(e);
 
             // 窗口建出来后才知道自己在哪块屏上：按该屏 DPI 重算缩放与（保存的）尺寸
-            SetScale(DeviceDpi / 96f);
+            int dpi = Win32.DpiForWindow(Handle, DeviceDpi);
+            SetScale(dpi / 96f);
             if (_settings.MainSize != null && _settings.MainSize.Length == 2 &&
-                _settings.MainDpi > 0 && _settings.MainDpi != DeviceDpi)
+                _settings.MainDpi > 0 && _settings.MainDpi != dpi)
             {
                 Size = new Size(
-                    Math.Max(Px(340), (int)Math.Round(_settings.MainSize[0] * (double)DeviceDpi / _settings.MainDpi)),
-                    Math.Max(Px(300), (int)Math.Round(_settings.MainSize[1] * (double)DeviceDpi / _settings.MainDpi)));
+                    Math.Max(Px(340), (int)Math.Round(_settings.MainSize[0] * (double)dpi / _settings.MainDpi)),
+                    Math.Max(Px(300), (int)Math.Round(_settings.MainSize[1] * (double)dpi / _settings.MainDpi)));
             }
             EnsureOnScreen();
             LayoutParts();
+            Log.Write("main dpi init=" + dpi + " scale=" + _scale.ToString("0.00"));
         }
 
         protected override void WndProc(ref Message m)

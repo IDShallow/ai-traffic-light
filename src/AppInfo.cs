@@ -5,7 +5,7 @@ namespace ClaudeTrafficLight
     /// <summary>产品级常量：应用和安装包共用（安装包编译时也会带上这个文件）。</summary>
     internal static class AppInfo
     {
-        public const string Version = "0.5.3";
+        public const string Version = "0.5.4";
         public const string ProductName = "Claude 状态红绿灯";
         /// <summary>界面上显示的名字（现在不止监控 Claude，所以用中性名）。</summary>
         public const string DisplayName = "AI 状态红绿灯";

@@ -87,8 +87,10 @@ namespace ClaudeTrafficLight
         {
             base.OnLoad(e);
             // 建立窗口后才能拿到所在显示器的 DPI
-            SetScale(DeviceDpi / 96f);
+            int dpi = Win32.DpiForWindow(Handle, DeviceDpi);
+            SetScale(dpi / 96f);
             EnsureOnScreen();
+            Log.Write("overview dpi init=" + dpi + " scale=" + _scale.ToString("0.00"));
         }
 
         protected override void WndProc(ref Message m)

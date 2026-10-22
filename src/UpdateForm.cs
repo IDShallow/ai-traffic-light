@@ -214,7 +214,7 @@ namespace ClaudeTrafficLight
         protected override void OnLoad(EventArgs e)
         {
             base.OnLoad(e);
-            float sc = DeviceDpi / 96f;
+            float sc = Win32.DpiForWindow(Handle, DeviceDpi) / 96f;
             if (Math.Abs(sc - _scale) > 0.01f)
             {
                 _scale = sc;

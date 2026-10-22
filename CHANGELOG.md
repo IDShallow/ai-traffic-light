@@ -3,6 +3,15 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [0.5.4] - 2026-10-22
+
+### Fixed
+
+- **高 DPI / 4K 下字体过小**（#3）：窗口初始化时直接向 Windows 查询所在显示器的 DPI
+  （`GetDpiForWindow`），不再用 `Control.DeviceDpi`——后者在 WinForms 未启用
+  PerMonitorV2 时返回系统（主屏）DPI，4K 副屏会按 100% 渲染。主窗 / 总览 / 设置 /
+  更新对话框都已改；启动日志新增 `main dpi init=` / `overview dpi init=`。
+
 ## [0.5.3] - 2026-10-21
 
 ### Added

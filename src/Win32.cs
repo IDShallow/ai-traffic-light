@@ -23,6 +23,26 @@ namespace ClaudeTrafficLight
         [DllImport("user32.dll")]
         public static extern uint GetDpiForSystem();
 
+        /// <summary>窗口所在显示器的 DPI（Win10 1607+）。</summary>
+        [DllImport("user32.dll")]
+        public static extern uint GetDpiForWindow(IntPtr hwnd);
+
+        /// <summary>
+        /// 直接问 Windows 窗口所在屏的 DPI。
+        /// ⚠ 不用 Control.DeviceDpi：WinForms 没在 app.config 里开 PerMonitorV2 时，
+        /// 它给的是系统（主屏）DPI —— 4K 副屏会按 100% 画，字就特别小。
+        /// </summary>
+        public static int DpiForWindow(IntPtr hwnd, int fallback)
+        {
+            try
+            {
+                uint d = GetDpiForWindow(hwnd);
+                if (d >= 48 && d <= 960) return (int)d;
+            }
+            catch { }
+            return fallback > 0 ? fallback : 96;
+        }
+
         public static int DpiOfWParam(IntPtr wParam)
         {
             return (int)(((long)wParam >> 16) & 0xFFFF);
