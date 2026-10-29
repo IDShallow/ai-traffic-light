@@ -45,6 +45,7 @@ namespace ClaudeTrafficLight
         private static DateTime _titlesAt = DateTime.MinValue;
         private static int _pid;
         private static DateTime _pidAt = DateTime.MinValue;
+        private static DateTime _diagAt = DateTime.MinValue;
         private static string[] _filesCache;
         private static DateTime _filesAt = DateTime.MinValue;
         private static List<SessionInfo> _dbCache;
@@ -113,6 +114,11 @@ namespace ClaudeTrafficLight
                 });
                 list.RemoveRange(8, list.Count - 8);
             }
+            if ((now - _diagAt).TotalSeconds > 60)
+            {
+                _diagAt = now;
+                Log.Write("codex scan n=" + list.Count + " running=" + running + " pid=" + pid);
+            }
             return list;
         }
 
@@ -169,7 +175,9 @@ namespace ClaudeTrafficLight
                 }
 
                 double ageMin = (now - mt).TotalMinutes;
-                bool alive = (running && ageMin < 120) || ageMin < 2;
+                // 有 Codex 进程（交互式/exec）时可以留久一点；没有进程就很快收掉，
+                // 否则关掉 CLI 后会话会赖在面板上（VS Code 扩展的 app-server 不算，见 IsRunning）。
+                bool alive = (running && ageMin < 120) || ageMin < 0.5;
                 if (!alive)
                 {
                     if (!settings.ShowOffline || ageMin > 30) continue;
@@ -241,7 +249,7 @@ namespace ClaudeTrafficLight
                 if ((now - updated).TotalHours > 48) continue;
 
                 double ageMin = (now - updated).TotalMinutes;
-                bool alive = ageMin < 2 || (running && ageMin < 120);
+                bool alive = ageMin < 0.5 || (running && ageMin < 120);
                 if (!alive && (!settings.ShowOffline || ageMin > 30)) continue;
 
                 string title = SqliteDb.Str(r, 1);
@@ -454,7 +462,27 @@ namespace ClaudeTrafficLight
             try
             {
                 Process[] ps = Process.GetProcessesByName("codex");
-                if (ps.Length > 0) pid = ps[0].Id;
+                for (int i = 0; i < ps.Length; i++)
+                {
+                    // VS Code 扩展会在后台常驻一个 codex app-server；它不代表有会话在跑，
+                    // 否则关掉 CLI 后所有近期会话都会被当成“还活着”。
+                    bool helper = false;
+                    int parent;
+                    if (Win32.TryGetParentPid(ps[i].Id, out parent) && parent > 0)
+                    {
+                        try
+                        {
+                            string pn = Process.GetProcessById(parent).ProcessName;
+                            if (string.Equals(pn, "Code", StringComparison.OrdinalIgnoreCase) ||
+                                pn.StartsWith("Code - ", StringComparison.OrdinalIgnoreCase))
+                                helper = true;
+                        }
+                        catch { }
+                    }
+                    if (helper) continue;
+                    pid = ps[i].Id;
+                    break;
+                }
             }
             catch { }
             _pid = pid;
@@ -543,7 +571,7 @@ namespace ClaudeTrafficLight
                         et == "patch_apply_begin" || et == "patch_apply_end" ||
                         et == "mcp_tool_call_begin" || et == "mcp_tool_call_end" ||
                         et == "web_search_begin" || et == "web_search_end" ||
-                        et == "agent_reasoning")
+                        et == "item_completed" || et == "agent_reasoning")
                     {
                         if (et == "task_started")
                         {
@@ -586,8 +614,8 @@ namespace ClaudeTrafficLight
                     {
                         string m = Json.Str(payload, "message");
                         if (m.Length > 0) p.LastAssistant = Cap(m, 4000);
-                        // 批准之后模型继续说话 ⇒ 已经恢复工作
-                        if (p.State == SessState.NeedsInput) { p.State = SessState.Working; p.WaitingFor = ""; }
+                        // 模型还在说话/继续这一轮
+                        if (p.State != SessState.Error) { p.State = SessState.Working; p.WaitingFor = ""; }
                     }
                     else if (et == "user_message")
                     {
@@ -595,14 +623,15 @@ namespace ClaudeTrafficLight
                         if (m.Length > 0) p.LastPrompt = Cap(m, 2000);
                         p.AskedUser = false;
                         p.PendingSyncCallId = "";
-                        if (p.State == SessState.NeedsInput) { p.State = SessState.Working; p.WaitingFor = ""; }
+                        if (p.State != SessState.Error) { p.State = SessState.Working; p.WaitingFor = ""; }
                     }
                 }
                 else if (type == "response_item")
                 {
-                    // 批准之后出现新的条目（工具输出等）⇒ 已经恢复工作；
-                    // 但正在等用户回答时要保持 NeedsInput
-                    if (!p.AskedUser && p.State == SessState.NeedsInput)
+                    // 只要这一轮还有新条目（思考/工具调用/工具输出/消息），就说明还在跑。
+                    // 某些版本的长回合会把 task_started 挤出 256KB 尾部窗口，
+                    // 不能因为“没看见 task_started”就一直停在 Done。
+                    if (!p.AskedUser && p.State != SessState.Error)
                     {
                         p.State = SessState.Working;
                         p.WaitingFor = "";

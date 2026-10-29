@@ -3,6 +3,18 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [0.5.8] - 2026-10-29
+
+### Fixed
+
+- **Codex 状态按回合边界判定**：`task_started`/思考/工具/消息等活动一律视为「工作中」，
+  只有 `task_complete`（或 `turn_aborted`）才判「已完成」。修掉两个误报来源：
+  长回合的 `task_started` 被挤出 256KB 尾部窗口时整轮显示已完成；
+  以及把每一步 item 的完成当成回合完成。
+- **关掉 Codex CLI 后会话不再赖着**：VS Code 扩展后台常驻的 `codex app-server`
+  不再被当成「有 Codex 在运行」；没有真实 Codex 进程时，会话在最后一次写入 30 秒后
+  从列表/总览消失（原来最长会留 120 分钟）。
+
 ## [0.5.7] - 2026-10-22
 
 ### Added

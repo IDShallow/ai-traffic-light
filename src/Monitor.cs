@@ -243,7 +243,8 @@ namespace ClaudeTrafficLight
             }
             // Codex / DeepSeek Harness
             List<SessionInfo> ext = new List<SessionInfo>();
-            try { ext.AddRange(CodexProvider.Scan(_settings, now)); } catch { }
+            try { ext.AddRange(CodexProvider.Scan(_settings, now)); }
+            catch (Exception ex) { Log.Write("codex scan failed: " + ex.Message); }
             try { ext.AddRange(DshProvider.Scan(_settings, now)); } catch { }
             ApplyExternalStates(ext, now);
             snap.AddRange(ext);
@@ -505,6 +506,10 @@ namespace ClaudeTrafficLight
                             }
                         }
                         st.Last = s.State;
+                        if (!first)
+                            Log.Write("state " + s.Provider + " " +
+                                      s.SessionId.Substring(0, Math.Min(8, s.SessionId.Length)) +
+                                      " " + prev + " -> " + s.State);
                     }
                     else if (s.State == SessState.NeedsInput && !first)
                     {
